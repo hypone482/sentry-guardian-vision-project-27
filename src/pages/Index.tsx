@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import SentryHeader from '@/components/SentryHeader';
 import VideoFeed from '@/components/VideoFeed';
@@ -6,7 +5,7 @@ import ControlPanel from '@/components/ControlPanel';
 import EventLog, { LogEvent } from '@/components/EventLog';
 import StatusPanel from '@/components/StatusPanel';
 import SystemData from '@/components/SystemData';
-import { toast } from '@/components/ui/sonner';
+import { toast } from 'sonner';
 
 const Index = () => {
   const [systemActive, setSystemActive] = useState(false);
@@ -16,7 +15,6 @@ const Index = () => {
   const [logEvents, setLogEvents] = useState<LogEvent[]>([]);
   const [detectionData, setDetectionData] = useState<{ timestamp: Date; count: number }[]>([]);
 
-  // Initialize system with startup logs
   useEffect(() => {
     const startupLogs: LogEvent[] = [
       {
@@ -48,7 +46,6 @@ const Index = () => {
     setLogEvents(startupLogs);
   }, []);
   
-  // Monitor system status
   useEffect(() => {
     if (!systemActive) {
       setSystemStatus('standby');
@@ -57,23 +54,19 @@ const Index = () => {
     
     setSystemStatus('active');
     
-    // Randomly simulate warnings
     const warningInterval = setInterval(() => {
       if (Math.random() < 0.1) { // 10% chance of warning
         setSystemStatus('warning');
         
-        // Log the warning
         addLogEvent({
           type: 'warning',
           message: 'Minor system anomaly detected. Monitoring...'
         });
         
-        // Show toast notification
         toast.warning("System Warning", {
           description: "Minor system anomaly detected",
         });
         
-        // Return to active after delay
         setTimeout(() => {
           if (systemActive) {
             setSystemStatus('active');
@@ -149,7 +142,6 @@ const Index = () => {
   };
 
   const handleSystemReset = () => {
-    // Don't change system active state, just log and notify
     addLogEvent({
       type: 'info',
       message: 'System reset initiated. Recalibrating sensors.'
@@ -159,7 +151,6 @@ const Index = () => {
       description: "Recalibrating sensors",
     });
     
-    // Simulate system reset
     if (systemActive) {
       setSystemStatus('warning');
       setTimeout(() => {
@@ -177,14 +168,12 @@ const Index = () => {
   const handleMotionDetected = (targets: any[]) => {
     if (!systemActive) return;
     
-    // Add to detection data
     setDetectionData(prev => [
       ...prev, 
       { timestamp: new Date(), count: targets.length }
-    ].slice(-20)); // Keep last 20 detections
+    ].slice(-20));
     
-    // Log significant motion
-    if (targets.length > 0 && Math.random() < 0.3) { // Only log some detections to avoid spam
+    if (targets.length > 0 && Math.random() < 0.3) {
       addLogEvent({
         type: targets.length > 2 ? 'warning' : 'info',
         message: `Motion detected: ${targets.length} object${targets.length > 1 ? 's' : ''} identified.`
@@ -200,15 +189,12 @@ const Index = () => {
 
   return (
     <div className="min-h-screen p-2 md:p-4 overflow-hidden relative bg-sentry-background">
-      {/* Scanline effect */}
       <div className="sentry-scanline" />
       
-      {/* Content Container */}
       <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-2rem)]">
         <SentryHeader systemStatus={systemStatus} />
         
         <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 overflow-y-auto">
-          {/* Camera Feed */}
           <div className="md:col-span-8 md:row-span-2">
             <VideoFeed 
               feedId="MAIN-01" 
@@ -218,7 +204,6 @@ const Index = () => {
             />
           </div>
           
-          {/* Control Panel */}
           <div className="md:col-span-4">
             <ControlPanel 
               sensitivity={sensitivity}
@@ -231,23 +216,19 @@ const Index = () => {
             />
           </div>
           
-          {/* Status Panel */}
           <div className="md:col-span-4">
             <StatusPanel systemActive={systemActive} />
           </div>
           
-          {/* System Data */}
           <div className="md:col-span-6">
             <SystemData detectionData={detectionData} />
           </div>
           
-          {/* Event Log */}
           <div className="md:col-span-6">
             <EventLog events={logEvents} />
           </div>
         </div>
         
-        {/* Footer */}
         <footer className="mt-4 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
           SENTRY GUARDIAN VISION SYSTEM v1.0 | <span className="text-sentry-accent">AUTHORIZED ACCESS ONLY</span>
         </footer>

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { BarChart, BarGraph, PieChartIcon } from 'lucide-react';
+import { BarChart, BarChart2, PieChartIcon } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SystemDataProps {
@@ -32,7 +32,7 @@ const SystemData: React.FC<SystemDataProps> = ({ detectionData }) => {
         <div className="border border-sentry-border rounded p-2 bg-black/20">
           <div className="flex items-center justify-between text-xs mb-2">
             <div className="flex items-center gap-1.5">
-              <BarGraph className="h-3 w-3 text-sentry-accent" />
+              <BarChart2 className="h-3 w-3 text-sentry-accent" />
               <span>DETECTION OVER TIME</span>
             </div>
           </div>

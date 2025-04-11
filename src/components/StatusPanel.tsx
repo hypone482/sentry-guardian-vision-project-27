@@ -50,8 +50,7 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
           </div>
           <Progress 
             value={stats.cpu} 
-            className="h-1 bg-muted" 
-            indicatorClassName={getProgressColor(stats.cpu)}
+            className={cn("h-1 bg-muted", getProgressColor(stats.cpu))}
           />
         </div>
 
@@ -73,8 +72,7 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
           </div>
           <Progress 
             value={stats.memory} 
-            className="h-1 bg-muted" 
-            indicatorClassName={getProgressColor(stats.memory)}
+            className={cn("h-1 bg-muted", getProgressColor(stats.memory))}
           />
         </div>
 
@@ -96,8 +94,7 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
           </div>
           <Progress 
             value={stats.network} 
-            className="h-1 bg-muted" 
-            indicatorClassName={getProgressColor(stats.network)}
+            className={cn("h-1 bg-muted", getProgressColor(stats.network))}
           />
         </div>
 
@@ -119,8 +116,7 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
           </div>
           <Progress 
             value={stats.temperature} 
-            className="h-1 bg-muted" 
-            indicatorClassName={getProgressColor(stats.temperature)}
+            className={cn("h-1 bg-muted", getProgressColor(stats.temperature))}
           />
         </div>
 
