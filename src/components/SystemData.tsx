@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { PieChart, Pie, Cell, ResponsiveContainer } from 'recharts';
-import { BarChart, BarChart2, PieChartIcon } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { BarChart, BarChart2, PieChartIcon, Activity } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SystemDataProps {
@@ -21,6 +21,24 @@ const SystemData: React.FC<SystemDataProps> = ({ detectionData }) => {
   
   const COLORS = ['#00FF00', '#FFBB28', '#0099FF'];
 
+  // Format detection data for the area chart
+  const chartData = detectionData.map((item) => ({
+    time: item.timestamp.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+    count: item.count
+  }));
+
+  // Add some sample data if the actual data is too small
+  if (chartData.length < 5) {
+    const now = new Date();
+    for (let i = 0; i < 5; i++) {
+      const time = new Date(now.getTime() - (i * 60000));
+      chartData.unshift({
+        time: time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }),
+        count: Math.floor(Math.random() * 5)
+      });
+    }
+  }
+
   return (
     <div className="sentry-panel flex flex-col h-full">
       <div className="flex items-center gap-2 mb-4">
@@ -32,26 +50,47 @@ const SystemData: React.FC<SystemDataProps> = ({ detectionData }) => {
         <div className="border border-sentry-border rounded p-2 bg-black/20">
           <div className="flex items-center justify-between text-xs mb-2">
             <div className="flex items-center gap-1.5">
-              <BarChart2 className="h-3 w-3 text-sentry-accent" />
+              <Activity className="h-3 w-3 text-sentry-accent" />
               <span>DETECTION OVER TIME</span>
             </div>
           </div>
-          <div className="h-36 flex items-end justify-between gap-1 pr-3">
-            {Array.from({ length: 12 }).map((_, index) => {
-              const height = Math.random() * 80 + 10;
-              return (
-                <div 
-                  key={index} 
-                  className="w-full bg-sentry-primary/70 rounded-t"
-                  style={{ height: `${height}%` }}
-                ></div>
-              );
-            })}
-          </div>
-          <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-1">
-            <span>1h ago</span>
-            <span>30m ago</span>
-            <span>now</span>
+          <div className="h-36">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={chartData}>
+                <defs>
+                  <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#00FF00" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="#00FF00" stopOpacity={0.1}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis 
+                  dataKey="time" 
+                  tick={{ fill: '#999', fontSize: 10 }} 
+                  axisLine={{ stroke: '#555' }}
+                  tickLine={{ stroke: '#555' }}
+                />
+                <YAxis 
+                  tick={{ fill: '#999', fontSize: 10 }} 
+                  axisLine={{ stroke: '#555' }}
+                  tickLine={{ stroke: '#555' }}
+                />
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                    border: '1px solid #333',
+                    color: '#ddd'
+                  }}
+                />
+                <Area 
+                  type="monotone" 
+                  dataKey="count" 
+                  stroke="#00FF00" 
+                  fillOpacity={1} 
+                  fill="url(#colorCount)" 
+                />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
@@ -78,6 +117,13 @@ const SystemData: React.FC<SystemDataProps> = ({ detectionData }) => {
                     <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                   ))}
                 </Pie>
+                <Tooltip 
+                  contentStyle={{ 
+                    backgroundColor: 'rgba(0, 0, 0, 0.8)', 
+                    border: '1px solid #333',
+                    color: '#ddd'
+                  }}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
@@ -97,10 +143,10 @@ const SystemData: React.FC<SystemDataProps> = ({ detectionData }) => {
 
       <div className="mt-3 border border-sentry-border rounded p-2 bg-black/20">
         <div className="flex items-center justify-between text-xs mb-1">
-          <span>CURRENT STATUS</span>
+          <span>TURRET STATUS</span>
           <span className="text-sentry-primary">OPERATIONAL</span>
         </div>
-        <div className="grid grid-cols-3 gap-2 text-xs">
+        <div className="grid grid-cols-4 gap-2 text-xs">
           <div className="flex flex-col">
             <span className="text-muted-foreground">OBJECTS TRACKED</span>
             <span className="font-mono text-sentry-accent">34</span>
@@ -112,6 +158,10 @@ const SystemData: React.FC<SystemDataProps> = ({ detectionData }) => {
           <div className="flex flex-col">
             <span className="text-muted-foreground">ALERTS</span>
             <span className="font-mono text-yellow-500">2</span>
+          </div>
+          <div className="flex flex-col">
+            <span className="text-muted-foreground">SERVO POSITION</span>
+            <span className="font-mono text-sentry-primary">X:45° Y:30°</span>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Activity, Cpu, HardDrive, Thermometer, Wifi } from 'lucide-react';
+import { Activity, Cpu, HardDrive, Thermometer, Wifi, Crosshair, Zap } from 'lucide-react';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 
@@ -15,7 +15,9 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
     memory: 42,
     network: 28,
     temperature: 38,
-    storage: 67
+    storage: 67,
+    servo: 56,
+    power: 92
   };
 
   const getProgressColor = (value: number) => {
@@ -76,47 +78,47 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
           />
         </div>
 
-        {/* Network Usage */}
+        {/* Servo Power */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
-              <Wifi className="h-3 w-3 text-sentry-accent" />
-              <span>NETWORK</span>
+              <Crosshair className="h-3 w-3 text-sentry-accent" />
+              <span>SERVO HEALTH</span>
             </div>
             <span className={cn(
               "font-mono",
-              stats.network > 70 ? "text-sentry-secondary" : 
-              stats.network > 40 ? "text-yellow-500" : 
+              stats.servo > 70 ? "text-sentry-secondary" : 
+              stats.servo > 40 ? "text-yellow-500" : 
               "text-sentry-primary"
             )}>
-              {stats.network}%
+              {stats.servo}%
             </span>
           </div>
           <Progress 
-            value={stats.network} 
-            className={cn("h-1 bg-muted", getProgressColor(stats.network))}
+            value={stats.servo} 
+            className={cn("h-1 bg-muted", getProgressColor(stats.servo))}
           />
         </div>
 
-        {/* Temperature */}
+        {/* Power */}
         <div className="space-y-1">
           <div className="flex items-center justify-between text-xs">
             <div className="flex items-center gap-1.5">
-              <Thermometer className="h-3 w-3 text-sentry-accent" />
-              <span>TEMPERATURE</span>
+              <Zap className="h-3 w-3 text-sentry-accent" />
+              <span>POWER</span>
             </div>
             <span className={cn(
               "font-mono",
-              stats.temperature > 70 ? "text-sentry-secondary" : 
-              stats.temperature > 40 ? "text-yellow-500" : 
-              "text-sentry-primary"
+              stats.power > 70 ? "text-sentry-primary" : 
+              stats.power > 40 ? "text-yellow-500" : 
+              "text-sentry-secondary"
             )}>
-              {stats.temperature}°C
+              {stats.power}%
             </span>
           </div>
           <Progress 
-            value={stats.temperature} 
-            className={cn("h-1 bg-muted", getProgressColor(stats.temperature))}
+            value={stats.power} 
+            className={cn("h-1 bg-muted", getProgressColor(stats.power))}
           />
         </div>
 
@@ -127,14 +129,14 @@ const StatusPanel: React.FC<StatusPanelProps> = ({ systemActive }) => {
             <span className="font-mono text-sentry-accent">02:34:15</span>
           </div>
           <div className="flex justify-between items-center mb-1">
-            <span>BATTERY</span>
-            <span className="font-mono text-yellow-500">87%</span>
+            <span>CALIBRATION</span>
+            <span className="font-mono text-sentry-primary">OPTIMAL</span>
           </div>
           <div className="flex justify-between items-center">
             <span>STATUS</span>
             <div className="flex items-center gap-1.5">
               <span className={systemActive ? "text-sentry-primary" : "text-muted-foreground"}>
-                {systemActive ? "ONLINE" : "STANDBY"}
+                {systemActive ? "ARMED" : "STANDBY"}
               </span>
               <div className={cn(
                 "h-2 w-2 rounded-full", 

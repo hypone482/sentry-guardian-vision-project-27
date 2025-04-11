@@ -53,6 +53,9 @@ const Index = () => {
     }
     
     setSystemStatus('active');
+    toast.success("Turret System Activated", {
+      description: "Monitoring mode engaged",
+    });
     
     const warningInterval = setInterval(() => {
       if (Math.random() < 0.1) { // 10% chance of warning
@@ -94,19 +97,19 @@ const Index = () => {
     if (active) {
       addLogEvent({
         type: 'success',
-        message: 'System activated. Surveillance mode engaged.'
+        message: 'Turret system activated. Surveillance mode engaged.'
       });
       
-      toast.success("System Activated", {
+      toast.success("Turret System Activated", {
         description: "Surveillance mode engaged",
       });
     } else {
       addLogEvent({
         type: 'info',
-        message: 'System deactivated. Entering standby mode.'
+        message: 'Turret system deactivated. Entering standby mode.'
       });
       
-      toast.info("System Deactivated", {
+      toast.info("Turret System Deactivated", {
         description: "Entering standby mode",
       });
     }
@@ -184,6 +187,17 @@ const Index = () => {
           description: `${targets.length} objects identified`,
         });
       }
+      
+      if (targets.some(t => t.locked)) {
+        addLogEvent({
+          type: 'warning',
+          message: 'Target locked. Turret tracking engaged.'
+        });
+        
+        toast.warning("Target Locked", {
+          description: "Turret tracking engaged",
+        });
+      }
     }
   };
 
@@ -230,7 +244,7 @@ const Index = () => {
         </div>
         
         <footer className="mt-4 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
-          SENTRY GUARDIAN VISION SYSTEM v1.0 | <span className="text-sentry-accent">AUTHORIZED ACCESS ONLY</span>
+          SENTRY GUARDIAN TURRET SYSTEM v1.0 | <span className="text-sentry-accent">AUTHORIZED ACCESS ONLY</span>
         </footer>
       </div>
     </div>

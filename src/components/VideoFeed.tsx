@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
-import { Maximize2, Camera, ZoomIn, ZoomOut } from 'lucide-react';
+import { Maximize2, Camera, ZoomIn, ZoomOut, Crosshair, Target } from 'lucide-react';
 
 interface Target {
   id: number;
@@ -10,6 +10,7 @@ interface Target {
   width: number;
   height: number;
   confidence: number;
+  locked?: boolean;
 }
 
 interface VideoFeedProps {
@@ -27,8 +28,11 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
 }) => {
   const [targets, setTargets] = useState<Target[]>([]);
   const [timestamp, setTimestamp] = useState(new Date());
+  const [targetLocked, setTargetLocked] = useState(false);
+  const [currentCoordinates, setCurrentCoordinates] = useState({ x: 50, y: 50 });
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const frameCount = useRef(0);
+  const viewRef = useRef<HTMLDivElement>(null);
 
   // Simulate random motion detection
   useEffect(() => {
@@ -47,13 +51,23 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         const targetCount = Math.floor(Math.random() * 3) + 1;
         
         for (let i = 0; i < targetCount; i++) {
+          const x = Math.random() * 80 + 10; // 10-90%
+          const y = Math.random() * 80 + 10; // 10-90%
+          const locked = i === 0 && Math.random() > 0.7;
+          
+          if (locked) {
+            setTargetLocked(true);
+            setCurrentCoordinates({ x, y });
+          }
+          
           newTargets.push({
             id: Date.now() + i,
-            x: Math.random() * 80 + 10, // 10-90%
-            y: Math.random() * 80 + 10, // 10-90%
+            x,
+            y,
             width: Math.random() * 20 + 5, // 5-25%
             height: Math.random() * 20 + 5, // 5-25%
-            confidence: Math.random() * 50 + 50 // 50-100%
+            confidence: Math.random() * 50 + 50, // 50-100%
+            locked
           });
         }
         
@@ -62,6 +76,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
       } else if (Math.random() > 0.7) {
         // Sometimes clear targets
         setTargets([]);
+        setTargetLocked(false);
       }
       
       // Draw scan lines and noise on canvas
@@ -96,6 +111,35 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     return () => clearInterval(interval);
   }, [active, sensitivity, onMotionDetected]);
 
+  const handleViewClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!active || !viewRef.current) return;
+    
+    const rect = viewRef.current.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    
+    setCurrentCoordinates({ x, y });
+    
+    // 40% chance of lock when clicking
+    if (Math.random() > 0.6) {
+      setTargetLocked(true);
+      
+      // Add a new target at click position
+      const newTarget: Target = {
+        id: Date.now(),
+        x,
+        y,
+        width: 10,
+        height: 10,
+        confidence: 85,
+        locked: true
+      };
+      
+      setTargets([newTarget, ...targets.slice(0, 2)]);
+      onMotionDetected([newTarget]);
+    }
+  };
+
   return (
     <div className="sentry-panel flex flex-col h-full">
       <div className="flex items-center justify-between mb-2">
@@ -114,7 +158,11 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         </div>
       </div>
 
-      <div className="relative flex-1 border border-sentry-border bg-black/40 overflow-hidden">
+      <div 
+        ref={viewRef}
+        className="relative flex-1 border border-sentry-border bg-black/40 overflow-hidden cursor-crosshair"
+        onClick={handleViewClick}
+      >
         {/* Static camera feed (simulated) */}
         <div className="absolute inset-0 bg-gradient-to-b from-sentry-muted/40 to-black/20"></div>
         
@@ -137,7 +185,10 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         {targets.map(target => (
           <div 
             key={target.id}
-            className="absolute border-2 border-sentry-secondary animate-pulse"
+            className={cn(
+              "absolute border-2 animate-pulse",
+              target.locked ? "border-red-500" : "border-sentry-secondary"
+            )}
             style={{
               left: `${target.x}%`,
               top: `${target.y}%`,
@@ -145,19 +196,57 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
               height: `${target.height}%`,
             }}
           >
-            <div className="absolute -top-5 -left-1 text-sentry-secondary text-xs">
+            <div className={cn(
+              "absolute -top-5 -left-1 text-xs",
+              target.locked ? "text-red-500" : "text-sentry-secondary"
+            )}>
               ID:{target.id.toString().slice(-4)} [{Math.round(target.confidence)}%]
+              {target.locked && " LOCKED"}
             </div>
-            <div className="absolute bottom-0 right-0 w-2 h-2 bg-sentry-secondary"></div>
-            <div className="absolute top-0 left-0 w-2 h-2 bg-sentry-secondary"></div>
+            <div className={cn(
+              "absolute bottom-0 right-0 w-2 h-2",
+              target.locked ? "bg-red-500" : "bg-sentry-secondary"
+            )}></div>
+            <div className={cn(
+              "absolute top-0 left-0 w-2 h-2",
+              target.locked ? "bg-red-500" : "bg-sentry-secondary"
+            )}></div>
           </div>
         ))}
+        
+        {/* Targeting reticle */}
+        <div 
+          className={cn(
+            "absolute pointer-events-none",
+            targetLocked ? "text-red-500" : "text-sentry-accent/50"
+          )}
+          style={{
+            left: `${currentCoordinates.x}%`,
+            top: `${currentCoordinates.y}%`,
+            transform: 'translate(-50%, -50%)'
+          }}
+        >
+          {targetLocked ? (
+            <Target className="h-10 w-10 animate-pulse" />
+          ) : (
+            <Crosshair className="h-8 w-8" />
+          )}
+        </div>
         
         {/* Camera details overlay */}
         <div className="absolute bottom-2 left-2 right-2 flex justify-between text-xs text-sentry-accent/70">
           <span>RES: 640x480</span>
           <span>FPS: 30</span>
           <span>ZOOM: 1.0x</span>
+        </div>
+        
+        {/* Turret position overlay */}
+        <div className="absolute top-2 left-2 text-xs flex flex-col text-sentry-accent/70 font-mono">
+          <span>X: {Math.round(currentCoordinates.x)}°</span>
+          <span>Y: {Math.round(currentCoordinates.y)}°</span>
+          <span className={targetLocked ? "text-red-500" : "hidden"}>
+            TARGET {targetLocked ? "LOCKED" : "SEARCHING"}
+          </span>
         </div>
         
         {/* Controls */}

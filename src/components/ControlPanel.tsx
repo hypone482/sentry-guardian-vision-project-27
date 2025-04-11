@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Sliders, Power, Eye, EyeOff, Settings, RotateCcw, Lock, Unlock } from 'lucide-react';
+import { Sliders, Power, Eye, EyeOff, Settings, RotateCcw, Lock, Unlock, Target, AlertTriangle } from 'lucide-react';
 import { Slider } from "@/components/ui/slider";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -98,9 +98,48 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
           </div>
           <div className="text-xs text-muted-foreground">
             {trackingMode === 'active' 
-              ? "Active tracking enabled. System will follow motion."
+              ? "Active tracking enabled. Turret will follow motion."
               : "Passive monitoring only. No active tracking."
             }
+          </div>
+        </div>
+
+        {/* Servo Control */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-medium">TURRET CONTROL</label>
+            <span className="text-xs font-mono bg-muted px-2 py-0.5 rounded">
+              MANUAL
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!systemActive}
+              className={cn(
+                "h-8 text-xs",
+                !systemActive ? "opacity-50" : "",
+                systemActive ? "hover:bg-sentry-primary/20 hover:text-sentry-primary" : ""
+              )}
+            >
+              <Target className="h-3 w-3 mr-2" />
+              CALIBRATE
+            </Button>
+            
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!systemActive}
+              className={cn(
+                "h-8 text-xs",
+                !systemActive ? "opacity-50" : "",
+                systemActive ? "hover:bg-yellow-500/20 hover:text-yellow-500" : ""
+              )}
+            >
+              <AlertTriangle className="h-3 w-3 mr-2" />
+              OVERRIDE
+            </Button>
           </div>
         </div>
 
@@ -134,12 +173,12 @@ const ControlPanel: React.FC<ControlPanelProps> = ({
             {systemActive ? (
               <>
                 <Lock className="h-3 w-3 mr-2 text-sentry-primary" />
-                <span className="text-sentry-primary">SYSTEM SECURED</span>
+                <span className="text-sentry-primary">TURRET ARMED</span>
               </>
             ) : (
               <>
                 <Unlock className="h-3 w-3 mr-2 text-yellow-500" />
-                <span className="text-yellow-500">SYSTEM UNLOCKED</span>
+                <span className="text-yellow-500">TURRET SAFE</span>
               </>
             )}
           </Button>
