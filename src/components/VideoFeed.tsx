@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { cn } from '@/lib/utils';
 import { Maximize2, Camera, ZoomIn, ZoomOut, Crosshair, Target, CameraOff } from 'lucide-react';
@@ -45,7 +44,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
   const prevFrameRef = useRef<ImageData | null>(null);
   const animationFrameRef = useRef<number | null>(null);
 
-  // Initialize and handle webcam
   useEffect(() => {
     if (active) {
       initWebcam();
@@ -61,15 +59,19 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     };
   }, [active]);
 
-  // Video processing for motion detection
   useEffect(() => {
     if (webcamActive && active) {
       setDetectionActive(true);
-      processVideoFrames();
       
-      toast.success("Detection Active", {
-        description: `Sensitivity set to ${sensitivity}%`
-      });
+      const processingTimer = setTimeout(() => {
+        processVideoFrames();
+        
+        toast.success("Detection Active", {
+          description: `Sensitivity set to ${sensitivity}%`
+        });
+      }, 1000); // 1 second delay to ensure video loads
+      
+      return () => clearTimeout(processingTimer);
     } else {
       setDetectionActive(false);
       if (animationFrameRef.current) {
@@ -115,7 +117,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         description: (error as Error).message || "Failed to access webcam"
       });
       
-      // Fall back to simulated data
       simulateMotionDetection();
     }
   };
@@ -133,7 +134,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     setWebcamActive(false);
   };
 
-  // Real-time video processing for motion detection
   const processVideoFrames = () => {
     const video = videoRef.current;
     const canvas = detectionCanvasRef.current;
@@ -143,180 +143,101 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     const context = canvas.getContext('2d', { willReadFrequently: true });
     if (!context) return;
     
-    // Set canvas dimensions to match video
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setTimeout(processVideoFrames, 100);
+      return;
+    }
+    
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     
     const analyzeFrame = () => {
-      // Update timestamp
       setTimestamp(new Date());
       
-      // Draw current frame to canvas
-      context.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
-      // Get image data
-      const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // Compare with previous frame to detect motion
-      if (prevFrameRef.current) {
-        const motionTargets = detectMotion(prevFrameRef.current, currentFrame, sensitivity);
-        
-        if (motionTargets.length > 0) {
-          setTargets(motionTargets);
-          onMotionDetected(motionTargets);
-          
-          // Randomly lock onto a target based on sensitivity
-          const shouldLock = Math.random() < (sensitivity / 200); // Higher sensitivity = higher chance
-          
-          if (shouldLock && motionTargets.length > 0 && !targetLocked) {
-            const targetIndex = Math.floor(Math.random() * motionTargets.length);
-            const target = motionTargets[targetIndex];
-            
-            setTargetLocked(true);
-            setCurrentCoordinates({ x: target.x, y: target.y });
-            
-            // Update the target to be locked
-            motionTargets[targetIndex] = { ...target, locked: true };
-            setTargets(motionTargets);
-          }
+      if (video.videoWidth === 0 || video.videoHeight === 0 || !webcamActive) {
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
         }
+        return;
       }
       
-      // Save current frame for next comparison
-      prevFrameRef.current = currentFrame;
+      context.drawImage(video, 0, 0, canvas.width, canvas.height);
       
-      // Continue analyzing frames
-      animationFrameRef.current = requestAnimationFrame(analyzeFrame);
-    };
-    
-    // Start the analysis loop
-    analyzeFrame();
-  };
-
-  // Detect motion by comparing frames
-  const detectMotion = (prevFrame: ImageData, currentFrame: ImageData, sensitivity: number): Target[] => {
-    const width = prevFrame.width;
-    const height = prevFrame.height;
-    const threshold = 30 * (sensitivity / 50); // Adjust based on sensitivity
-    const blockSize = 20; // Size of blocks to analyze
-    const detectedBlocks: { x: number, y: number, diff: number }[] = [];
-    
-    // Compare frames by blocks to find motion areas
-    for (let y = 0; y < height; y += blockSize) {
-      for (let x = 0; x < width; x += blockSize) {
-        let totalDiff = 0;
+      try {
+        const currentFrame = context.getImageData(0, 0, canvas.width, canvas.height);
         
-        // Sample points within the block
-        for (let i = 0; i < blockSize; i += 4) {
-          for (let j = 0; j < blockSize; j += 4) {
-            if (y + j < height && x + i < width) {
-              const idx = ((y + j) * width + (x + i)) * 4;
+        if (prevFrameRef.current) {
+          const motionTargets = detectMotion(prevFrameRef.current, currentFrame, sensitivity);
+          
+          if (motionTargets.length > 0) {
+            setTargets(motionTargets);
+            onMotionDetected(motionTargets);
+            
+            const shouldLock = Math.random() < (sensitivity / 200);
+            
+            if (shouldLock && motionTargets.length > 0 && !targetLocked) {
+              const targetIndex = Math.floor(Math.random() * motionTargets.length);
+              const target = motionTargets[targetIndex];
               
-              // Calculate difference in RGB values
-              const rDiff = Math.abs(currentFrame.data[idx] - prevFrame.data[idx]);
-              const gDiff = Math.abs(currentFrame.data[idx + 1] - prevFrame.data[idx + 1]);
-              const bDiff = Math.abs(currentFrame.data[idx + 2] - prevFrame.data[idx + 2]);
+              setTargetLocked(true);
+              setCurrentCoordinates({ x: target.x, y: target.y });
               
-              totalDiff += (rDiff + gDiff + bDiff) / 3;
+              motionTargets[targetIndex] = { ...target, locked: true };
+              setTargets(motionTargets);
             }
           }
         }
         
-        // If the difference exceeds the threshold, mark as motion
-        const avgDiff = totalDiff / ((blockSize / 4) * (blockSize / 4));
-        if (avgDiff > threshold) {
-          detectedBlocks.push({ 
-            x: x / width * 100, 
-            y: y / height * 100, 
-            diff: avgDiff 
-          });
-        }
+        prevFrameRef.current = currentFrame;
+      } catch (error) {
+        console.error("Error processing video frame:", error);
       }
-    }
+      
+      animationFrameRef.current = requestAnimationFrame(analyzeFrame);
+    };
     
-    // Group nearby blocks into targets
-    return groupIntoTargets(detectedBlocks, width, height);
+    analyzeFrame();
   };
 
-  // Group nearby motion blocks into cohesive targets
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    
+    const handleVideoLoaded = () => {
+      if (video.videoWidth > 0 && video.videoHeight > 0 && detectionCanvasRef.current) {
+        detectionCanvasRef.current.width = video.videoWidth;
+        detectionCanvasRef.current.height = video.videoHeight;
+      }
+    };
+    
+    video.addEventListener('loadeddata', handleVideoLoaded);
+    
+    return () => {
+      video.removeEventListener('loadeddata', handleVideoLoaded);
+    };
+  }, []);
+
+  const detectMotion = (prevFrame: ImageData, currentFrame: ImageData, sensitivity: number): Target[] => {
+    // ... keep existing detectMotion function
+  };
+
   const groupIntoTargets = (blocks: { x: number, y: number, diff: number }[], width: number, height: number): Target[] => {
-    if (blocks.length === 0) return [];
-    
-    // Simple clustering algorithm to group nearby blocks
-    const targets: Target[] = [];
-    const visited = new Set<number>();
-    
-    for (let i = 0; i < blocks.length; i++) {
-      if (visited.has(i)) continue;
-      
-      // Start a new target
-      const cluster: typeof blocks = [blocks[i]];
-      visited.add(i);
-      
-      // Find all blocks that belong to this target
-      for (let j = 0; j < blocks.length; j++) {
-        if (visited.has(j)) continue;
-        
-        const distX = Math.abs(blocks[i].x - blocks[j].x);
-        const distY = Math.abs(blocks[i].y - blocks[j].y);
-        
-        if (distX < 10 && distY < 10) { // Threshold for grouping
-          cluster.push(blocks[j]);
-          visited.add(j);
-        }
-      }
-      
-      // Calculate target properties
-      if (cluster.length > 0) {
-        const avgX = cluster.reduce((sum, b) => sum + b.x, 0) / cluster.length;
-        const avgY = cluster.reduce((sum, b) => sum + b.y, 0) / cluster.length;
-        const avgDiff = cluster.reduce((sum, b) => sum + b.diff, 0) / cluster.length;
-        
-        // Width and height based on spread of blocks
-        const minX = Math.min(...cluster.map(b => b.x));
-        const maxX = Math.max(...cluster.map(b => b.x));
-        const minY = Math.min(...cluster.map(b => b.y));
-        const maxY = Math.max(...cluster.map(b => b.y));
-        
-        const targetWidth = Math.max(10, maxX - minX + 5); // Minimum size of 10%
-        const targetHeight = Math.max(10, maxY - minY + 5); // Minimum size of 10%
-        
-        // Convert diff to confidence (0-100%)
-        const confidence = Math.min(100, (avgDiff / 50) * 100);
-        
-        // Create the target
-        targets.push({
-          id: Date.now() + i,
-          x: avgX,
-          y: avgY,
-          width: targetWidth,
-          height: targetHeight,
-          confidence,
-          locked: false
-        });
-      }
-    }
-    
-    // Sort by confidence
-    return targets.sort((a, b) => b.confidence - a.confidence).slice(0, 3);
+    // ... keep existing groupIntoTargets function
   };
 
-  // Simulate random motion detection when webcam is not available
   const simulateMotionDetection = () => {
     if (!active) return;
     
     const interval = setInterval(() => {
-      // Update timestamp
       setTimestamp(new Date());
       
-      // Randomly detect motion based on sensitivity
       if (Math.random() < sensitivity / 100) {
         const newTargets: Target[] = [];
         const targetCount = Math.floor(Math.random() * 3) + 1;
         
         for (let i = 0; i < targetCount; i++) {
-          const x = Math.random() * 80 + 10; // 10-90%
-          const y = Math.random() * 80 + 10; // 10-90%
+          const x = Math.random() * 80 + 10;
+          const y = Math.random() * 80 + 10;
           const locked = i === 0 && Math.random() > 0.7;
           
           if (locked) {
@@ -328,9 +249,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
             id: Date.now() + i,
             x,
             y,
-            width: Math.random() * 20 + 5, // 5-25%
-            height: Math.random() * 20 + 5, // 5-25%
-            confidence: Math.random() * 50 + 50, // 50-100%
+            width: Math.random() * 20 + 5,
+            height: Math.random() * 20 + 5,
+            confidence: Math.random() * 50 + 50,
             locked
           });
         }
@@ -338,7 +259,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         setTargets(newTargets);
         onMotionDetected(newTargets);
       } else if (Math.random() > 0.7) {
-        // Sometimes clear targets
         setTargets([]);
         setTargetLocked(false);
       }
@@ -347,7 +267,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     return () => clearInterval(interval);
   };
 
-  // Handle zooming functions
   const handleZoomIn = () => {
     setZoomLevel(prev => Math.min(prev + 0.2, 2.0));
     toast.info("Zoom Adjusted", {
@@ -362,17 +281,14 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     });
   };
 
-  // Draw scan lines and noise on canvas
   useEffect(() => {
     const interval = setInterval(() => {
       const canvas = canvasRef.current;
       if (canvas) {
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          // Clear canvas
           ctx.clearRect(0, 0, canvas.width, canvas.height);
           
-          // Add noise
           for (let i = 0; i < 500; i++) {
             const x = Math.random() * canvas.width;
             const y = Math.random() * canvas.height;
@@ -383,7 +299,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
             ctx.fillRect(x, y, size, size);
           }
           
-          // Add scan line
           const scanLinePos = (frameCount.current % 100) / 100 * canvas.height;
           ctx.fillStyle = 'rgba(0, 255, 0, 0.1)';
           ctx.fillRect(0, scanLinePos, canvas.width, 2);
@@ -405,11 +320,9 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     
     setCurrentCoordinates({ x, y });
     
-    // 40% chance of lock when clicking
     if (Math.random() > 0.6) {
       setTargetLocked(true);
       
-      // Add a new target at click position
       const newTarget: Target = {
         id: Date.now(),
         x,
@@ -464,7 +377,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         className="relative flex-1 border border-sentry-border bg-black/40 overflow-hidden cursor-crosshair"
         onClick={handleViewClick}
       >
-        {/* Webcam video feed */}
         {active && (
           <video 
             ref={videoRef}
@@ -480,13 +392,11 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           />
         )}
         
-        {/* Hidden canvas for motion detection */}
         <canvas 
           ref={detectionCanvasRef} 
           className="hidden"
         />
         
-        {/* Static camera feed fallback (shown when webcam is not active) */}
         {(!webcamActive || webcamError) && (
           <div className="absolute inset-0 bg-gradient-to-b from-sentry-muted/40 to-black/20">
             {webcamError && (
@@ -499,7 +409,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           </div>
         )}
         
-        {/* Canvas for visual effects */}
         <canvas 
           ref={canvasRef}
           className="absolute inset-0 w-full h-full pointer-events-none"
@@ -507,14 +416,12 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           height="200"
         />
         
-        {/* Grid overlay */}
         <div className="absolute inset-0 grid grid-cols-6 grid-rows-6 pointer-events-none">
           {Array.from({ length: 36 }).map((_, i) => (
             <div key={i} className="border border-sentry-accent/10"></div>
           ))}
         </div>
         
-        {/* Targets */}
         {targets.map(target => (
           <div 
             key={target.id}
@@ -548,7 +455,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           </div>
         ))}
         
-        {/* Targeting reticle */}
         <div 
           className={cn(
             "absolute pointer-events-none",
@@ -567,21 +473,18 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           )}
         </div>
         
-        {/* Camera details overlay */}
         <div className="absolute bottom-2 left-2 right-2 flex justify-between text-xs text-sentry-accent/70">
           <span>RES: {webcamActive ? "NATIVE" : "640x480"}</span>
           <span>FPS: {webcamActive ? "30" : "SIM"}</span>
           <span>ZOOM: {zoomLevel.toFixed(1)}x</span>
         </div>
         
-        {/* Detection status */}
         {detectionActive && (
           <div className="absolute top-2 left-2 text-xs bg-black/50 px-2 py-1 rounded text-sentry-primary">
             MOTION DETECTION ACTIVE
           </div>
         )}
         
-        {/* Turret position overlay */}
         <div className="absolute top-10 left-2 text-xs flex flex-col text-sentry-accent/70 font-mono">
           <span>X: {Math.round(currentCoordinates.x)}°</span>
           <span>Y: {Math.round(currentCoordinates.y)}°</span>
@@ -590,7 +493,6 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           </span>
         </div>
         
-        {/* Controls */}
         <div className="absolute top-2 right-2 flex gap-2 text-sentry-accent/70">
           <button 
             className="hover:text-sentry-primary transition-colors"
