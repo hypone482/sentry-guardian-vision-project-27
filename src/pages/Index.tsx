@@ -5,6 +5,7 @@ import ControlPanel from '@/components/ControlPanel';
 import EventLog, { LogEvent } from '@/components/EventLog';
 import StatusPanel from '@/components/StatusPanel';
 import SystemData from '@/components/SystemData';
+import RadarDisplay from '@/components/RadarDisplay';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -230,15 +231,16 @@ const Index = () => {
             />
           </div>
           
-          <div className="md:col-span-4">
+          <div className="md:col-span-4 flex flex-col gap-4">
             <StatusPanel systemActive={systemActive} />
+            <RadarDisplay active={systemActive} />
           </div>
           
-          <div className="md:col-span-6">
+          <div className="md:col-span-8">
             <SystemData detectionData={detectionData} />
           </div>
           
-          <div className="md:col-span-6">
+          <div className="md:col-span-8">
             <EventLog events={logEvents} />
           </div>
         </div>
