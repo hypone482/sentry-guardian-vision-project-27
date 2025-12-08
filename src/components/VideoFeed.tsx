@@ -16,6 +16,8 @@ import CoordinatesDisplay from '@/components/video/CoordinatesDisplay';
 import WebcamError from '@/components/video/WebcamError';
 import ZoomControls from '@/components/video/ZoomControls';
 import Minimap from '@/components/video/Minimap';
+import CameraModes, { CameraMode } from '@/components/video/CameraModes';
+import RangeFinder from '@/components/video/RangeFinder';
 
 // Utilities
 import { simulateMotionDetection, Target } from '@/utils/motionDetection';
@@ -34,6 +36,55 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
   onMotionDetected 
 }) => {
   const [zoomLevel, setZoomLevel] = useState(1);
+  const [cameraMode, setCameraMode] = useState<CameraMode>('normal');
+
+  // Handle keyboard shortcuts for camera modes
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!active) return;
+      if (e.key === '1') setCameraMode('normal');
+      if (e.key === '2') setCameraMode('nightVision');
+      if (e.key === '3') setCameraMode('thermal');
+      if (e.key === '4') setCameraMode('rangeFinder');
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [active]);
+
+  const handleModeChange = (mode: CameraMode) => {
+    setCameraMode(mode);
+    toast.info("Camera Mode", {
+      description: `Switched to ${mode === 'nightVision' ? 'Night Vision' : mode === 'thermal' ? 'Thermal' : mode === 'rangeFinder' ? 'Range Finder' : 'Normal'} mode`
+    });
+  };
+
+  // Get camera mode styles
+  const getCameraModeStyles = () => {
+    switch (cameraMode) {
+      case 'nightVision':
+        return 'brightness-150 contrast-125 hue-rotate-[80deg] saturate-200';
+      case 'thermal':
+        return 'brightness-110 contrast-150 saturate-150 hue-rotate-[-30deg]';
+      case 'rangeFinder':
+        return 'brightness-110 contrast-110';
+      default:
+        return '';
+    }
+  };
+
+  const getCameraModeOverlay = () => {
+    switch (cameraMode) {
+      case 'nightVision':
+        return 'bg-green-500/10';
+      case 'thermal':
+        return 'bg-gradient-to-b from-orange-500/10 via-yellow-500/5 to-red-500/10';
+      case 'rangeFinder':
+        return 'bg-cyan-500/5';
+      default:
+        return '';
+    }
+  };
   
   // Custom hooks
   const {
@@ -130,15 +181,47 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
       />
 
       <div 
-        className="relative flex-1 border border-sentry-border bg-black/40 overflow-hidden cursor-crosshair"
+        className={cn(
+          "relative flex-1 border border-sentry-border bg-black/40 overflow-hidden cursor-crosshair",
+          cameraMode === 'nightVision' && "border-green-500/40",
+          cameraMode === 'thermal' && "border-orange-500/40",
+          cameraMode === 'rangeFinder' && "border-cyan-500/40"
+        )}
         onClick={handleViewClick}
       >
+        {/* Camera mode overlay */}
+        <div className={cn(
+          "absolute inset-0 pointer-events-none z-10 transition-colors duration-300",
+          getCameraModeOverlay()
+        )} />
+
+        {/* Night vision scanlines effect */}
+        {cameraMode === 'nightVision' && (
+          <div 
+            className="absolute inset-0 pointer-events-none z-10 opacity-20"
+            style={{
+              background: 'repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,0,0.1) 2px, rgba(0,255,0,0.1) 4px)'
+            }}
+          />
+        )}
+
+        {/* Thermal gradient overlay */}
+        {cameraMode === 'thermal' && (
+          <div 
+            className="absolute inset-0 pointer-events-none z-10 mix-blend-overlay opacity-40"
+            style={{
+              background: 'linear-gradient(180deg, rgba(255,0,0,0.2) 0%, rgba(255,165,0,0.2) 25%, rgba(255,255,0,0.2) 50%, rgba(0,255,0,0.2) 75%, rgba(0,0,255,0.2) 100%)'
+            }}
+          />
+        )}
+
         {active && (
           <video 
             ref={videoRef}
             className={cn(
-              "absolute inset-0 w-full h-full object-cover",
-              !webcamActive && "hidden"
+              "absolute inset-0 w-full h-full object-cover transition-all duration-300",
+              !webcamActive && "hidden",
+              getCameraModeStyles()
             )}
             style={{ transform: `scale(${zoomLevel})` }}
             autoPlay
@@ -200,6 +283,20 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           targetLocked={targetLocked}
           active={active}
         />
+
+        <CameraModes
+          currentMode={cameraMode}
+          onModeChange={handleModeChange}
+          active={active}
+        />
+
+        {cameraMode === 'rangeFinder' && (
+          <RangeFinder
+            targets={targets}
+            currentCoordinates={currentCoordinates}
+            active={active}
+          />
+        )}
       </div>
     </div>
   );
