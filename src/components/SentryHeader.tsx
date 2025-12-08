@@ -1,6 +1,7 @@
 
 import React from 'react';
-import { Shield, AlertTriangle, BellRing, Activity } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import { Shield, AlertTriangle, BellRing, Activity, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 interface SentryHeaderProps {
@@ -43,6 +44,9 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({ systemStatus }) => {
         </div>
         
         <div className="flex items-center gap-2">
+          <Link to="/settings" className="hover:text-sentry-primary transition-colors" title="Settings">
+            <Settings className="h-5 w-5 text-sentry-accent hover:text-sentry-primary" />
+          </Link>
           <BellRing className="h-5 w-5 text-sentry-accent" />
           <AlertTriangle className="h-5 w-5 text-yellow-500" />
         </div>
