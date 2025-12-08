@@ -15,6 +15,7 @@ import FeedStatus from '@/components/video/FeedStatus';
 import CoordinatesDisplay from '@/components/video/CoordinatesDisplay';
 import WebcamError from '@/components/video/WebcamError';
 import ZoomControls from '@/components/video/ZoomControls';
+import Minimap from '@/components/video/Minimap';
 
 // Utilities
 import { simulateMotionDetection, Target } from '@/utils/motionDetection';
@@ -191,6 +192,13 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
           zoomLevel={zoomLevel}
           onZoomIn={handleZoomIn}
           onZoomOut={handleZoomOut}
+        />
+        
+        <Minimap
+          targets={targets}
+          currentCoordinates={currentCoordinates}
+          targetLocked={targetLocked}
+          active={active}
         />
       </div>
     </div>
