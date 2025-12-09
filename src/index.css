@@ -101,4 +101,29 @@
   .terminal-text {
     @apply font-mono text-sm text-sentry-foreground/90;
   }
+
+  /* Draggable panel animations */
+  .panel-drag-active {
+    @apply ring-2 ring-primary/50 shadow-lg shadow-primary/20;
+  }
+
+  .panel-minimized {
+    @apply max-h-10 overflow-hidden;
+  }
+
+  /* Responsive panel grid */
+  @screen md {
+    .panel-container {
+      @apply grid grid-cols-12 gap-2;
+    }
+  }
+
+  /* Resize handle styling */
+  .resize-handle {
+    @apply bg-border/50 hover:bg-primary/50 transition-colors;
+  }
+
+  .resize-handle:hover {
+    @apply bg-primary/30;
+  }
 }
