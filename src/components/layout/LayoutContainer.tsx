@@ -20,6 +20,8 @@ import VideoFeed from '@/components/VideoFeed';
 import ControlPanel from '@/components/ControlPanel';
 import StatusPanel from '@/components/StatusPanel';
 import RadarDisplay from '@/components/RadarDisplay';
+import Radar3DDisplay from '@/components/Radar3DDisplay';
+import GPSMap from '@/components/GPSMap';
 import SystemData from '@/components/SystemData';
 import EventLog, { LogEvent } from '@/components/EventLog';
 import { 
@@ -50,9 +52,11 @@ interface LayoutContainerProps {
 
 const DEFAULT_PANELS: PanelConfig[] = [
   { id: 'video', title: 'Video Feed', visible: true, column: 'left' },
+  { id: 'radar3d', title: '3D Radar', visible: true, column: 'left' },
   { id: 'control', title: 'Control Panel', visible: true, column: 'right' },
   { id: 'status', title: 'Status', visible: true, column: 'right' },
   { id: 'radar', title: 'Radar', visible: true, column: 'right' },
+  { id: 'gpsmap', title: 'GPS Map', visible: true, column: 'right' },
   { id: 'data', title: 'System Data', visible: true, column: 'left' },
   { id: 'events', title: 'Event Log', visible: true, column: 'left' },
 ];
@@ -148,6 +152,10 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
         return <StatusPanel systemActive={systemActive} />;
       case 'radar':
         return <RadarDisplay active={systemActive} />;
+      case 'radar3d':
+        return <Radar3DDisplay active={systemActive} />;
+      case 'gpsmap':
+        return <GPSMap active={systemActive} />;
       case 'data':
         return <SystemData detectionData={detectionData} />;
       case 'events':
