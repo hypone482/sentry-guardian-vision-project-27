@@ -1,11 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import SentryHeader from '@/components/SentryHeader';
-import VideoFeed from '@/components/VideoFeed';
-import ControlPanel from '@/components/ControlPanel';
-import EventLog, { LogEvent } from '@/components/EventLog';
-import StatusPanel from '@/components/StatusPanel';
-import SystemData from '@/components/SystemData';
-import RadarDisplay from '@/components/RadarDisplay';
+import LayoutContainer from '@/components/layout/LayoutContainer';
+import { LogEvent } from '@/components/EventLog';
 import { toast } from 'sonner';
 
 const Index = () => {
@@ -59,7 +55,7 @@ const Index = () => {
     });
     
     const warningInterval = setInterval(() => {
-      if (Math.random() < 0.1) { // 10% chance of warning
+      if (Math.random() < 0.1) {
         setSystemStatus('warning');
         
         addLogEvent({
@@ -203,49 +199,28 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen p-2 md:p-4 overflow-hidden relative bg-sentry-background">
+    <div className="min-h-screen h-screen p-2 md:p-4 overflow-hidden relative bg-sentry-background flex flex-col">
       <div className="sentry-scanline" />
       
-      <div className="max-w-7xl mx-auto flex flex-col h-[calc(100vh-2rem)]">
+      <div className="max-w-[1920px] mx-auto flex flex-col h-full w-full">
         <SentryHeader systemStatus={systemStatus} />
         
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-12 gap-4 overflow-y-auto">
-          <div className="md:col-span-8 md:row-span-2">
-            <VideoFeed 
-              feedId="MAIN-01" 
-              sensitivity={sensitivity}
-              active={systemActive}
-              onMotionDetected={handleMotionDetected}
-            />
-          </div>
-          
-          <div className="md:col-span-4">
-            <ControlPanel 
-              sensitivity={sensitivity}
-              onSensitivityChange={handleSensitivityChange}
-              systemActive={systemActive}
-              onSystemActiveChange={handleSystemActiveChange}
-              trackingMode={trackingMode}
-              onTrackingModeChange={handleTrackingModeChange}
-              onReset={handleSystemReset}
-            />
-          </div>
-          
-          <div className="md:col-span-4 flex flex-col gap-4">
-            <StatusPanel systemActive={systemActive} />
-            <RadarDisplay active={systemActive} />
-          </div>
-          
-          <div className="md:col-span-8">
-            <SystemData detectionData={detectionData} />
-          </div>
-          
-          <div className="md:col-span-8">
-            <EventLog events={logEvents} />
-          </div>
+        <div className="flex-1 overflow-hidden mt-2">
+          <LayoutContainer
+            systemActive={systemActive}
+            sensitivity={sensitivity}
+            trackingMode={trackingMode}
+            logEvents={logEvents}
+            detectionData={detectionData}
+            onSensitivityChange={handleSensitivityChange}
+            onSystemActiveChange={handleSystemActiveChange}
+            onTrackingModeChange={handleTrackingModeChange}
+            onReset={handleSystemReset}
+            onMotionDetected={handleMotionDetected}
+          />
         </div>
         
-        <footer className="mt-4 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
+        <footer className="mt-2 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
           SENTRY GUARDIAN TURRET SYSTEM v1.0 | <span className="text-sentry-accent">AUTHORIZED ACCESS ONLY</span>
         </footer>
       </div>
