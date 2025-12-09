@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/lib/utils';
-import { MapPin, Navigation, Compass, Locate } from 'lucide-react';
+import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2 } from 'lucide-react';
 
 interface GPSData {
   latitude: number;
@@ -22,9 +22,10 @@ interface MapMarker {
 interface GPSMapProps {
   active?: boolean;
   className?: string;
+  onLocationUpdate?: (lat: number, lng: number) => void;
 }
 
-const GPSMap: React.FC<GPSMapProps> = ({ active = true, className }) => {
+const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpdate }) => {
   const [gpsData, setGpsData] = useState<GPSData>({
     latitude: 40.7128,
     longitude: -74.0060,
@@ -42,24 +43,67 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className }) => {
   ]);
 
   const [mapScale, setMapScale] = useState(1);
+  const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'active' | 'error'>('idle');
+  const [gpsError, setGpsError] = useState<string | null>(null);
+  const [watchId, setWatchId] = useState<number | null>(null);
 
-  // Simulate GPS updates
+  // Request real GPS location
+  const requestGPSLocation = useCallback(() => {
+    if (!navigator.geolocation) {
+      setGpsError('Geolocation not supported');
+      setGpsStatus('error');
+      return;
+    }
+
+    setGpsStatus('loading');
+    setGpsError(null);
+
+    const id = navigator.geolocation.watchPosition(
+      (position) => {
+        const { latitude, longitude, altitude, accuracy, heading, speed } = position.coords;
+        
+        setGpsData({
+          latitude,
+          longitude,
+          altitude: altitude || 0,
+          accuracy: accuracy || 5,
+          heading: heading || 0,
+          speed: speed || 0
+        });
+        
+        setGpsStatus('active');
+        onLocationUpdate?.(latitude, longitude);
+      },
+      (error) => {
+        console.error('GPS Error:', error);
+        setGpsError(error.message);
+        setGpsStatus('error');
+      },
+      {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 1000
+      }
+    );
+
+    setWatchId(id);
+  }, [onLocationUpdate]);
+
+  // Cleanup GPS watch on unmount
   useEffect(() => {
-    if (!active) return;
+    return () => {
+      if (watchId !== null) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [watchId]);
 
-    const interval = setInterval(() => {
-      setGpsData(prev => ({
-        ...prev,
-        latitude: prev.latitude + (Math.random() - 0.5) * 0.0001,
-        longitude: prev.longitude + (Math.random() - 0.5) * 0.0001,
-        heading: (prev.heading + (Math.random() - 0.5) * 5 + 360) % 360,
-        speed: Math.max(0, prev.speed + (Math.random() - 0.5) * 2),
-        altitude: prev.altitude + (Math.random() - 0.5) * 0.5
-      }));
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [active]);
+  // Auto-start GPS when active
+  useEffect(() => {
+    if (active && gpsStatus === 'idle') {
+      requestGPSLocation();
+    }
+  }, [active, gpsStatus, requestGPSLocation]);
 
   const getMarkerColor = (type: MapMarker['type']) => {
     switch (type) {
@@ -191,13 +235,35 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className }) => {
       {/* GPS Data Panel */}
       <div className="absolute top-2 left-2 bg-card/90 backdrop-blur rounded border border-border p-2 min-w-[140px]">
         <div className="flex items-center gap-1 mb-2">
-          <Locate className={cn("w-3 h-3", active ? "text-emerald-500" : "text-muted-foreground")} />
-          <span className="text-[10px] font-display text-primary">GPS LOCK</span>
+          {gpsStatus === 'loading' ? (
+            <Loader2 className="w-3 h-3 text-yellow-500 animate-spin" />
+          ) : gpsStatus === 'error' ? (
+            <AlertCircle className="w-3 h-3 text-red-500" />
+          ) : (
+            <Locate className={cn("w-3 h-3", gpsStatus === 'active' ? "text-emerald-500" : "text-muted-foreground")} />
+          )}
+          <span className="text-[10px] font-display text-primary">
+            {gpsStatus === 'active' ? 'GPS LOCK' : gpsStatus === 'loading' ? 'ACQUIRING...' : gpsStatus === 'error' ? 'GPS ERROR' : 'GPS IDLE'}
+          </span>
           <span className={cn(
             "w-2 h-2 rounded-full ml-auto",
-            active ? "bg-emerald-500 animate-pulse" : "bg-red-500"
+            gpsStatus === 'active' ? "bg-emerald-500 animate-pulse" : 
+            gpsStatus === 'loading' ? "bg-yellow-500 animate-pulse" : "bg-red-500"
           )} />
         </div>
+        
+        {gpsError && (
+          <div className="text-[8px] text-red-400 mb-1 break-words max-w-[120px]">{gpsError}</div>
+        )}
+        
+        {gpsStatus !== 'active' && (
+          <button
+            onClick={requestGPSLocation}
+            className="w-full text-[9px] font-mono bg-primary/20 text-primary border border-primary/40 rounded px-2 py-1 mb-2 hover:bg-primary/30"
+          >
+            {gpsStatus === 'loading' ? 'ACQUIRING...' : 'ENABLE GPS'}
+          </button>
+        )}
         
         <div className="space-y-1 text-[9px] font-mono">
           <div className="flex justify-between">

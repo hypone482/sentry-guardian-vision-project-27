@@ -22,6 +22,8 @@ import StatusPanel from '@/components/StatusPanel';
 import RadarDisplay from '@/components/RadarDisplay';
 import Radar3DDisplay from '@/components/Radar3DDisplay';
 import GPSMap from '@/components/GPSMap';
+import Globe3D from '@/components/Globe3D';
+import JoystickControl from '@/components/JoystickControl';
 import SystemData from '@/components/SystemData';
 import EventLog, { LogEvent } from '@/components/EventLog';
 import { 
@@ -53,10 +55,12 @@ interface LayoutContainerProps {
 const DEFAULT_PANELS: PanelConfig[] = [
   { id: 'video', title: 'Video Feed', visible: true, column: 'left' },
   { id: 'radar3d', title: '3D Radar', visible: true, column: 'left' },
+  { id: 'globe3d', title: '3D Globe', visible: true, column: 'left' },
   { id: 'control', title: 'Control Panel', visible: true, column: 'right' },
   { id: 'status', title: 'Status', visible: true, column: 'right' },
   { id: 'radar', title: 'Radar', visible: true, column: 'right' },
   { id: 'gpsmap', title: 'GPS Map', visible: true, column: 'right' },
+  { id: 'joystick', title: 'Joystick', visible: true, column: 'right' },
   { id: 'data', title: 'System Data', visible: true, column: 'left' },
   { id: 'events', title: 'Event Log', visible: true, column: 'left' },
 ];
@@ -80,6 +84,11 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
   
   const [fullscreenPanel, setFullscreenPanel] = useState<string | null>(null);
   const [leftPanelSize, setLeftPanelSize] = useState(65);
+  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
+
+  const handleLocationUpdate = useCallback((lat: number, lng: number) => {
+    setUserLocation({ lat, lng });
+  }, []);
 
   useEffect(() => {
     localStorage.setItem('sentry-panel-layout', JSON.stringify(panels));
@@ -155,7 +164,11 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
       case 'radar3d':
         return <Radar3DDisplay active={systemActive} />;
       case 'gpsmap':
-        return <GPSMap active={systemActive} />;
+        return <GPSMap active={systemActive} onLocationUpdate={handleLocationUpdate} />;
+      case 'globe3d':
+        return <Globe3D active={systemActive} userLocation={userLocation} />;
+      case 'joystick':
+        return <JoystickControl active={systemActive} />;
       case 'data':
         return <SystemData detectionData={detectionData} />;
       case 'events':
