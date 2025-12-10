@@ -31,7 +31,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         <div className="flex flex-col">
           <h1 style={{
           fontFamily: 'Algerian, "Times New Roman", serif'
-        }} className="leading-tight tracking-wide text-sentry-primary font-serif font-medium text-6xl text-center">B-THUNDER-01</h1>
+        }} className="leading-tight tracking-wide text-sentry-primary font-serif font-medium text-6xl text-justify">B-THUNDER-01</h1>
           <span style={{
           fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
         }} className="text-sentry-accent/80 font-medium text-base font-serif text-center">            constructed by YOD ALEF Engineering company                                                           Gmail = Workenih1219@Gmail.com                                         
@@ -42,7 +42,7 @@ Telegram https://t.me/WORKENIH</span>
       {/* Center - Status */}
       <div className="flex items-center gap-4">
         <div className="hidden md:flex items-center gap-2">
-          <span className="text-xs">CPU: 34%</span>
+          
           <Activity className="h-4 w-4 text-sentry-accent" />
         </div>
         
