@@ -188,7 +188,7 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
   }
   return <div className="flex flex-col h-full gap-2">
       {/* Layout Controls */}
-      <div className="gap-2 px-2 py-1 bg-card/30 rounded border border-border/30 flex-col flex items-start justify-center">
+      <div className="gap-2 px-2 py-1 bg-card/30 rounded border border-border/30 items-start justify-center flex flex-row">
         <span className="text-xs text-muted-foreground font-mono">PANELS:</span>
         {panels.map(panel => <button key={panel.id} onClick={() => togglePanelVisibility(panel.id)} className={cn("text-xs px-2 py-0.5 rounded transition-colors font-mono", panel.visible ? "bg-primary/20 text-primary border border-primary/40" : "bg-muted/20 text-muted-foreground border border-border/40")}>
             {panel.title}
