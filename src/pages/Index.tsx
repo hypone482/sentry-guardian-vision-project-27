@@ -175,7 +175,7 @@ const Index = () => {
           <LayoutContainer systemActive={systemActive} sensitivity={sensitivity} trackingMode={trackingMode} logEvents={logEvents} detectionData={detectionData} onSensitivityChange={handleSensitivityChange} onSystemActiveChange={handleSystemActiveChange} onTrackingModeChange={handleTrackingModeChange} onReset={handleSystemReset} onMotionDetected={handleMotionDetected} />
         </div>
         
-        <footer className="mt-2 text-center text-xs text-muted-foreground py-2 border-t border-border/40">B-THUNDER-01 SYSTEM v1.0 | YOD ALEF ENGINEERING COMPANY | Automated Remote Control Turret Gun System designed specifically for the Ethiopian military. AUTHORIZED ACCESS ONLY<span className="text-sentry-accent">YOD ALEF ENGINEERING COMPANY</span> | AUTHORIZED ACCESS ONLY
+        <footer className="mt-2 text-center text-xs text-muted-foreground py-2 border-t border-border/40">B-THUNDER-01 SYSTEM v1.0 | YOD ALEF ENGINEERING COMPANY | Automated Remote Control Turret Gun System designed for the Ethiopian military. AUTHORIZED ACCESS ONLY<span className="text-sentry-accent">YOD ALEF ENGINEERING COMPANY</span> | AUTHORIZED ACCESS ONLY
         </footer>
       </div>
     </div>;
