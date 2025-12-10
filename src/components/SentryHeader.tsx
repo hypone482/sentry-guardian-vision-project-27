@@ -31,7 +31,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         <div className="flex flex-col">
           <h1 style={{
           fontFamily: 'Algerian, "Times New Roman", serif'
-        }} className="leading-tight tracking-wide text-sentry-primary font-serif font-medium text-6xl text-justify">B-THUNDER-01</h1>
+        }} className="leading-tight tracking-wide text-sentry-primary font-medium text-6xl text-justify font-mono">B-THUNDER-01</h1>
           <span style={{
           fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
         }} className="text-sentry-accent/80 font-medium text-base font-serif text-center">            constructed by YOD ALEF Engineering company                                                           Gmail = Workenih1219@Gmail.com                                         
@@ -46,10 +46,7 @@ Telegram https://t.me/WORKENIH</span>
           
         </div>
         
-        <div className="flex items-center gap-2">
-          
-          <div className={cn("h-2 w-2 rounded-full", statusColors[systemStatus])}></div>
-        </div>
+        
         
         <div className="flex items-center gap-2">
           <Link to="/settings" className="hover:text-sentry-primary transition-colors" title="Settings">
