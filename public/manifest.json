@@ -1,7 +1,7 @@
 {
-  "name": "Sentry Guardian Vision",
-  "short_name": "Sentry",
-  "description": "Advanced surveillance and monitoring system with radar tracking, thermal imaging, and motion detection",
+  "name": "B-THUNDER-01 - YOD ALEF Engineering",
+  "short_name": "B-THUNDER-01",
+  "description": "Advanced surveillance and monitoring system by YOD ALEF Engineering - Radar tracking, thermal imaging, and motion detection",
   "theme_color": "#0a0f0a",
   "background_color": "#0a0f0a",
   "display": "standalone",
