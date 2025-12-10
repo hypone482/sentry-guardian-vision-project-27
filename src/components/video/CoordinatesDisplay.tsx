@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { cn } from '@/lib/utils';
 
@@ -14,21 +13,33 @@ const CoordinatesDisplay: React.FC<CoordinatesDisplayProps> = ({
   detectionActive
 }) => {
   return (
-    <>
+    <div className="absolute bottom-14 left-2 z-20">
       {detectionActive && (
-        <div className="absolute top-2 left-2 text-xs bg-black/50 px-2 py-1 rounded text-sentry-primary">
+        <div className="text-[10px] bg-black/60 px-2 py-1 rounded text-sentry-primary mb-1 font-mono">
           MOTION DETECTION ACTIVE
         </div>
       )}
       
-      <div className="absolute top-10 left-2 text-xs flex flex-col text-sentry-accent/70 font-mono">
-        <span>X: {Math.round(currentCoordinates.x)}°</span>
-        <span>Y: {Math.round(currentCoordinates.y)}°</span>
-        <span className={targetLocked ? "text-red-500" : "hidden"}>
-          TARGET {targetLocked ? "LOCKED" : "SEARCHING"}
-        </span>
+      <div className="bg-black/60 px-2 py-1.5 rounded text-[11px] flex flex-col gap-0.5 font-mono border border-sentry-accent/20">
+        <div className="flex items-center gap-2">
+          <span className="text-sentry-accent/70">X:</span>
+          <span className="text-sentry-primary font-bold w-10 text-right">
+            {currentCoordinates.x.toFixed(1)}°
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-sentry-accent/70">Y:</span>
+          <span className="text-sentry-primary font-bold w-10 text-right">
+            {currentCoordinates.y.toFixed(1)}°
+          </span>
+        </div>
+        {targetLocked && (
+          <div className="text-red-500 font-bold animate-pulse mt-1 text-center">
+            TARGET LOCKED
+          </div>
+        )}
       </div>
-    </>
+    </div>
   );
 };
 
