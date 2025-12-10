@@ -27,7 +27,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       <div className="flex items-center gap-4">
         <img alt="YOD ALEF Engineering Logo" style={{
         maxWidth: '63px'
-      }} src="/lovable-uploads/3e54a185-7357-4b43-9cb7-f5c1449a7771.png" className="h-[54px] w-auto border-0 object-fill border-none" />
+      }} className="h-[150px] w-auto border-0 object-fill border-none" src="/lovable-uploads/8245c862-16cc-476f-8364-0fc15ddaa728.png" />
         <div className="flex flex-col">
           <h1 style={{
           fontFamily: 'Algerian, "Times New Roman", serif'
