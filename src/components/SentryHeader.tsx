@@ -34,7 +34,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         }} className="leading-tight tracking-wide text-sentry-primary font-medium text-6xl text-justify font-mono"> B-THUNDER-01</h1>
           <span style={{
           fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
-        }} className="text-sentry-accent/80 font-medium text-base font-serif text-center">            constructed by YOD ALEF Engineering company                                                 
+        }} className="text-sentry-accent/80 font-medium text-base font-serif text-right">            constructed by YOD ALEF Engineering company                                                 
           Gmail = Workenih1219@Gmail.com                                           
 Telegram https://t.me/WORKENIH</span>
         </div>
