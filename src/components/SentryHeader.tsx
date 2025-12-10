@@ -34,7 +34,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         }} className="leading-tight tracking-wide text-sentry-primary font-serif font-medium text-4xl">          B-THUNDER-01</h1>
           <span className="text-[18px] text-sentry-accent/80" style={{
           fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
-        }}>                                  constructed by                                           YOD ALEF Engineering company</span>
+        }}>                       constructed by                                           YOD ALEF Engineering company</span>
         </div>
       </div>
       
