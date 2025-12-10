@@ -1,70 +1,75 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Settings } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import logo from '@/assets/logo.png';
 import flagVideo from '@/assets/flag-video.mp4';
+
 interface SentryHeaderProps {
   systemStatus: 'active' | 'standby' | 'warning' | 'error';
 }
-const SentryHeader: React.FC<SentryHeaderProps> = ({
-  systemStatus
-}) => {
-  const statusColors = {
-    active: 'text-sentry-primary animate-pulse',
-    standby: 'text-yellow-500',
-    warning: 'text-orange-500 animate-pulse',
-    error: 'text-sentry-secondary animate-blink'
-  };
-  const statusMessages = {
-    active: 'SYSTEM ACTIVE - MONITORING',
-    standby: 'STANDBY MODE',
-    warning: 'WARNING: SYSTEM ISSUES DETECTED',
-    error: 'CRITICAL ERROR'
-  };
-  return <header className="sentry-panel flex items-center justify-between h-auto min-h-[80px] mb-4 py-2 px-4">
-      {/* Left side - Logo and Title */}
-      <div className="flex items-center gap-4">
-        <img alt="YOD ALEF Engineering Logo" style={{
-        maxWidth: '63px'
-      }} src="/lovable-uploads/8fbf0457-659c-4de1-97ee-2e46d9b90d05.png" className="h-[170px] w-[170px] border-1 border-none opacity-100 shadow-none object-fill rounded-sm" />
-        <div className="flex flex-col">
-          <h1 style={{
-          fontFamily: 'Algerian, "Times New Roman", serif'
-        }} className="leading-tight tracking-wide text-sentry-primary font-medium text-6xl text-justify font-mono"> B-THUNDER-01</h1>
-          <span style={{
-          fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
-        }} className="text-sentry-accent/80 font-medium text-base font-serif text-right">            constructed by YOD ALEF Engineering company                                                                Gmail = Workenih1219@Gmail.com                                          Telegram https://t.me/WORKENIH</span>
-        </div>
+
+const SentryHeader: React.FC<SentryHeaderProps> = ({ systemStatus }) => {
+  return (
+    <header className="sentry-panel flex items-center justify-between h-auto min-h-[100px] mb-4 py-3 px-6">
+      {/* Left side - Logo */}
+      <div className="flex-shrink-0">
+        <img
+          alt="YOD ALEF Engineering Logo"
+          src={logo}
+          className="object-contain rounded-sm"
+          style={{
+            width: '120px',
+            height: '137px',
+            filter: 'brightness(1.2) contrast(1.1)',
+          }}
+        />
       </div>
-      
-      {/* Center - Status */}
-      <div className="flex items-center gap-4">
-        <div className="hidden md:flex items-center gap-2">
-          
-          
-        </div>
-        
-        
-        
-        <div className="flex items-center gap-2">
-          <Link to="/settings" className="hover:text-sentry-primary transition-colors" title="Settings">
-            <Settings className="h-5 w-5 text-sentry-accent hover:text-sentry-primary" />
-          </Link>
-          
-          
+
+      {/* Center - Title and Info */}
+      <div className="flex-1 flex flex-col items-center justify-center px-4">
+        <h1
+          style={{ fontFamily: 'Algerian, "Times New Roman", serif' }}
+          className="leading-tight tracking-wide text-sentry-primary font-medium text-4xl md:text-5xl lg:text-6xl text-center"
+        >
+          B-THUNDER-01
+        </h1>
+        <div
+          style={{ fontFamily: '"Imprint MT Shadow", "Times New Roman", serif' }}
+          className="text-sentry-accent/80 font-medium text-xs md:text-sm text-center mt-2 max-w-xl leading-relaxed"
+        >
+          <span className="block">constructed by YOD ALEF Engineering company</span>
+          <span className="block mt-1 text-sentry-accent/60">
+            Gmail: Workenih1219@Gmail.com | Telegram: https://t.me/WORKENIH
+          </span>
         </div>
       </div>
 
-      {/* Right side - Flag Video */}
-      <div className="flex items-center">
-        <div className="overflow-hidden rounded border border-sentry-primary/30 shadow-lg shadow-sentry-primary/20" style={{
-        width: '138px',
-        height: '65px'
-      }}>
-          <video src={flagVideo} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+      {/* Right side - Settings and Flag Video */}
+      <div className="flex items-center gap-4 flex-shrink-0">
+        <Link
+          to="/settings"
+          className="hover:text-sentry-primary transition-colors"
+          title="Settings"
+        >
+          <Settings className="h-5 w-5 text-sentry-accent hover:text-sentry-primary" />
+        </Link>
+
+        <div
+          className="overflow-hidden rounded border border-sentry-primary/30 shadow-lg shadow-sentry-primary/20"
+          style={{ width: '138px', height: '65px' }}
+        >
+          <video
+            src={flagVideo}
+            autoPlay
+            loop
+            muted
+            playsInline
+            className="w-full h-full object-cover"
+          />
         </div>
       </div>
-    </header>;
+    </header>
+  );
 };
+
 export default SentryHeader;
