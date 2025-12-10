@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, BellRing, Activity, Settings } from 'lucide-react';
+import { Activity, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logo from '@/assets/logo.png';
 import flagVideo from '@/assets/flag-video.mp4';
@@ -27,11 +27,11 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       <div className="flex items-center gap-4">
         <img alt="YOD ALEF Engineering Logo" style={{
         maxWidth: '63px'
-      }} src="/lovable-uploads/7333a3f9-84e4-48b8-84b8-0a1aa45493d8.png" className="h-[150px] w-auto border-0 object-fill border-none" />
+      }} src="/lovable-uploads/3e54a185-7357-4b43-9cb7-f5c1449a7771.png" className="h-[54px] w-auto border-0 object-fill border-none" />
         <div className="flex flex-col">
           <h1 style={{
           fontFamily: 'Algerian, "Times New Roman", serif'
-        }} className="leading-tight tracking-wide text-sentry-primary font-serif text-justify text-5xl font-extralight">                                    B-THUNDER-01</h1>
+        }} className="leading-tight tracking-wide text-sentry-primary font-serif font-medium text-4xl">          B-THUNDER-01</h1>
           <span className="text-[18px] text-sentry-accent/80" style={{
           fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
         }}>                                  constructed by                                           YOD ALEF Engineering company</span>
@@ -39,8 +39,8 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       </div>
       
       {/* Center - Status */}
-      <div className="gap-4 flex-row flex items-end justify-end">
-        <div className="hidden items-center gap-2 md:flex md:flex-col">
+      <div className="flex items-center gap-4">
+        <div className="hidden md:flex items-center gap-2">
           <span className="text-xs">CPU: 34%</span>
           <Activity className="h-4 w-4 text-sentry-accent" />
         </div>
@@ -56,8 +56,8 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
           <Link to="/settings" className="hover:text-sentry-primary transition-colors" title="Settings">
             <Settings className="h-5 w-5 text-sentry-accent hover:text-sentry-primary" />
           </Link>
-          <BellRing className="h-5 w-5 text-sentry-accent" />
-          <AlertTriangle className="h-5 w-5 text-yellow-500" />
+          
+          
         </div>
       </div>
 
