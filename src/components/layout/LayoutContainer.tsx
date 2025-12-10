@@ -205,7 +205,7 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
           <ResizablePanel defaultSize={leftPanelSize} minSize={30} maxSize={80} onResize={setLeftPanelSize}>
             <SortableContext items={leftPanels.map(p => p.id)} strategy={rectSortingStrategy}>
               <div className="h-full flex flex-col gap-2 pr-1 overflow-y-auto">
-                {leftPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className={panel.id === 'video' ? 'flex-1 min-h-[300px]' : ''}>
+                {leftPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="">
                     {renderPanelContent(panel)}
                   </DraggablePanel>)}
               </div>
