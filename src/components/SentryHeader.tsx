@@ -27,7 +27,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       <div className="flex items-center gap-4">
         <img alt="YOD ALEF Engineering Logo" style={{
         maxWidth: '63px'
-      }} src="/lovable-uploads/3e54a185-7357-4b43-9cb7-f5c1449a7771.png" className="h-[54px] w-auto border-0 object-fill border-none" />
+      }} src="/lovable-uploads/7333a3f9-84e4-48b8-84b8-0a1aa45493d8.png" className="h-[150px] w-auto border-0 object-fill border-none" />
         <div className="flex flex-col">
           <h1 style={{
           fontFamily: 'Algerian, "Times New Roman", serif'
@@ -39,7 +39,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       </div>
       
       {/* Center - Status */}
-      <div className="flex items-center gap-4">
+      <div className="gap-4 flex-row flex items-end justify-end">
         <div className="hidden md:flex items-center gap-2">
           <span className="text-xs">CPU: 34%</span>
           <Activity className="h-4 w-4 text-sentry-accent" />
