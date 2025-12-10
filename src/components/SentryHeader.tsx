@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Activity, Settings } from 'lucide-react';
+import { Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import logo from '@/assets/logo.png';
 import flagVideo from '@/assets/flag-video.mp4';
@@ -43,13 +43,11 @@ Telegram https://t.me/WORKENIH</span>
       <div className="flex items-center gap-4">
         <div className="hidden md:flex items-center gap-2">
           
-          <Activity className="h-4 w-4 text-sentry-accent" />
+          
         </div>
         
         <div className="flex items-center gap-2">
-          <span className={cn("font-mono text-xs md:text-sm", statusColors[systemStatus])}>
-            {statusMessages[systemStatus]}
-          </span>
+          
           <div className={cn("h-2 w-2 rounded-full", statusColors[systemStatus])}></div>
         </div>
         
