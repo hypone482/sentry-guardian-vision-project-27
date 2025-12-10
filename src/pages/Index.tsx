@@ -221,7 +221,7 @@ const Index = () => {
         </div>
         
         <footer className="mt-2 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
-          SENTRY GUARDIAN TURRET SYSTEM v1.0 | <span className="text-sentry-accent">AUTHORIZED ACCESS ONLY</span>
+          B-THUNDER-01 SYSTEM v1.0 | <span className="text-sentry-accent">YOD ALEF ENGINEERING COMPANY</span> | AUTHORIZED ACCESS ONLY
         </footer>
       </div>
     </div>
