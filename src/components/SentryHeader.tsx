@@ -40,7 +40,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       
       {/* Center - Status */}
       <div className="gap-4 flex-row flex items-end justify-end">
-        <div className="hidden md:flex items-center gap-2">
+        <div className="hidden items-center gap-2 md:flex md:flex-col">
           <span className="text-xs">CPU: 34%</span>
           <Activity className="h-4 w-4 text-sentry-accent" />
         </div>
