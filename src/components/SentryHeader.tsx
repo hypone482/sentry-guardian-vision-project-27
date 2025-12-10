@@ -34,16 +34,14 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         }} className="leading-tight tracking-wide text-sentry-primary font-serif font-medium text-4xl">          B-THUNDER-01</h1>
           <span className="text-[18px] text-sentry-accent/80" style={{
           fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
-        }}>                              constructed by                               
-           YOD ALEF Engineering company
-        Gmail = Workenih1219@Gmail.com
-
-Telephone = 091219982                        Telegram https://t.me/WORKENIH</span>
+        }}>            constructed by YOD ALEF Engineering company         
+   Gmail = Workenih1219@Gmail.com               
+Telegram https://t.me/WORKENIH</span>
         </div>
       </div>
       
       {/* Center - Status */}
-      <div className="items-center flex flex-row gap-[10px] border-dashed">
+      <div className="flex items-center gap-4">
         <div className="hidden md:flex items-center gap-2">
           <span className="text-xs">CPU: 34%</span>
           <Activity className="h-4 w-4 text-sentry-accent" />
@@ -71,7 +69,7 @@ Telephone = 091219982                        Telegram htt
         width: '138px',
         height: '65px'
       }}>
-          <video src={flagVideo} autoPlay loop muted playsInline className="w-full h-full object-cover border-0" />
+          <video src={flagVideo} autoPlay loop muted playsInline className="w-full h-full object-cover" />
         </div>
       </div>
     </header>;
