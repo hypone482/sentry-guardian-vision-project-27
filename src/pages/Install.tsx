@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Download, Smartphone, Monitor, CheckCircle, Radar } from "lucide-react";
+import { Download, Smartphone, Monitor, CheckCircle, Radar, WifiOff } from "lucide-react";
+import logo from "@/assets/logo.png";
 
 interface BeforeInstallPromptEvent extends Event {
   prompt(): Promise<void>;
@@ -52,19 +53,34 @@ const Install = () => {
       <div className="max-w-md w-full space-y-8 text-center">
         {/* Logo */}
         <div className="flex justify-center">
-          <div className="w-24 h-24 rounded-2xl bg-primary/20 border border-primary/50 flex items-center justify-center animate-pulse">
-            <Radar className="w-12 h-12 text-primary" />
-          </div>
+          <img 
+            src={logo} 
+            alt="YOD ALEF Engineering Logo" 
+            className="w-24 h-28 object-contain"
+            style={{ filter: 'brightness(1.3) contrast(1.15)' }}
+          />
         </div>
 
         {/* Title */}
         <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-foreground tracking-tight">
-            Sentry Guardian Vision
+          <h1 
+            style={{ fontFamily: 'Algerian, "Times New Roman", serif' }}
+            className="text-3xl font-bold text-primary tracking-tight"
+          >
+            B-THUNDER-01
           </h1>
-          <p className="text-muted-foreground">
+          <p className="text-muted-foreground text-sm">
+            YOD ALEF Engineering Company
+          </p>
+          <p className="text-muted-foreground text-xs">
             Advanced surveillance and monitoring system
           </p>
+        </div>
+        
+        {/* Offline Badge */}
+        <div className="flex items-center justify-center gap-2 px-4 py-2 bg-primary/10 border border-primary/30 rounded-lg">
+          <WifiOff className="w-4 h-4 text-primary" />
+          <span className="text-sm text-primary font-medium">Works Offline</span>
         </div>
 
         {/* Features */}
@@ -87,7 +103,7 @@ const Install = () => {
               Already Installed!
             </h2>
             <p className="text-muted-foreground text-sm">
-              Sentry Guardian is ready to use on your device.
+              B-THUNDER-01 is ready to use on your device.
             </p>
             <Button
               className="mt-4"
@@ -149,7 +165,7 @@ const Install = () => {
 
         {/* System Requirements */}
         <p className="text-xs text-muted-foreground">
-          Works offline • Requires camera permission for video feed
+          Full offline support • All features work without internet • Requires camera permission
         </p>
       </div>
     </div>
