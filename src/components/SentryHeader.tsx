@@ -39,7 +39,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       </div>
       
       {/* Center - Status */}
-      <div className="flex items-center gap-4">
+      <div className="items-center flex flex-row gap-[10px] border-dashed">
         <div className="hidden md:flex items-center gap-2">
           <span className="text-xs">CPU: 34%</span>
           <Activity className="h-4 w-4 text-sentry-accent" />
@@ -67,7 +67,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         width: '138px',
         height: '65px'
       }}>
-          <video src={flagVideo} autoPlay loop muted playsInline className="w-full h-full object-cover" />
+          <video src={flagVideo} autoPlay loop muted playsInline className="w-full h-full object-cover border-0" />
         </div>
       </div>
     </header>;
