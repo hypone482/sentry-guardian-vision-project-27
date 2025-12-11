@@ -21,6 +21,7 @@ interface DraggablePanelProps {
   onRemove?: () => void;
   isFullscreen?: boolean;
   onToggleFullscreen?: () => void;
+  'data-panel'?: string;
 }
 
 const DraggablePanel: React.FC<DraggablePanelProps> = ({
@@ -31,7 +32,8 @@ const DraggablePanel: React.FC<DraggablePanelProps> = ({
   defaultMinimized = false,
   onRemove,
   isFullscreen = false,
-  onToggleFullscreen
+  onToggleFullscreen,
+  'data-panel': dataPanel
 }) => {
   const [isMinimized, setIsMinimized] = useState(defaultMinimized);
   
@@ -80,6 +82,7 @@ const DraggablePanel: React.FC<DraggablePanelProps> = ({
     <div
       ref={setNodeRef}
       style={style}
+      data-panel={dataPanel}
       className={cn(
         "sentry-panel transition-all duration-200",
         isDragging && "opacity-50 z-50 shadow-lg shadow-primary/20",
