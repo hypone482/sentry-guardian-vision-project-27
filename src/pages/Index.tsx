@@ -184,7 +184,7 @@ const Index = () => {
       <div className="sentry-scanline" />
       
       <div className="max-w-[1920px] mx-auto h-full w-full flex-col flex items-center justify-start">
-        <SentryHeader systemStatus={systemStatus} className="mx-[2px]" />
+        <SentryHeader systemStatus={systemStatus} />
         
         <div className="flex-1 overflow-hidden mt-2">
           <LayoutContainer systemActive={systemActive} sensitivity={sensitivity} trackingMode={trackingMode} logEvents={logEvents} detectionData={detectionData} onSensitivityChange={handleSensitivityChange} onSystemActiveChange={handleSystemActiveChange} onTrackingModeChange={handleTrackingModeChange} onReset={handleSystemReset} onMotionDetected={handleMotionDetected} />

@@ -65,7 +65,7 @@ const EventLog: React.FC<EventLogProps> = ({ events }) => {
                         {event.type.toUpperCase()}
                       </span>
                       <span className="text-[10px] text-muted-foreground">
-                        {event.timestamp.toLocaleTimeString()}
+                        {new Date(event.timestamp).toLocaleTimeString()}
                       </span>
                     </div>
                     <p className="mt-0.5 leading-tight">{event.message}</p>
