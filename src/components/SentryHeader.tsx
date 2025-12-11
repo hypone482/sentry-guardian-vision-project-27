@@ -65,8 +65,8 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         <div style={{
         fontFamily: '"Imprint MT Shadow", "Times New Roman", serif'
       }} className="text-sentry-accent/80 font-medium text-xs md:text-sm text-center mt-1 max-w-xl leading-relaxed">
-          <span className="block">constructed by YOD ALEF Engineering company</span>
-          <span className="block mt-0.5 text-sentry-accent/60 text-[10px]">
+          <span className="block text-lg">constructed by YOD ALEF Engineering company</span>
+          <span className="block mt-0.5 text-sentry-accent/60 text-sm">
             Gmail: Workenih1219@Gmail.com | Telegram: https://t.me/WORKENIH
           </span>
         </div>
