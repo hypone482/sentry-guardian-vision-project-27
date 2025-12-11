@@ -59,7 +59,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
       <div className="flex-1 flex flex-col items-center justify-center px-4">
         <h1 style={{
         fontFamily: 'Algerian, "Times New Roman", serif'
-      }} className="leading-tight tracking-wide text-sentry-primary font-medium text-3xl lg:text-5xl text-center px-[80px] py-[25px] md:text-5xl">
+      }} className="leading-tight tracking-wide text-sentry-primary font-medium text-3xl lg:text-5xl text-center md:text-5xl px-[75px] py-[2px] font-serif">
           B-THUNDER-01
         </h1>
         <div style={{
