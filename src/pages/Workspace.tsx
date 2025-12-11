@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, AlertTriangle, CheckCircle, Split, Maximize2, Minimize2 } from 'lucide-react';
+import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Split, Maximize2, Download } from 'lucide-react';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { toast } from 'sonner';
 
 interface MissionLog {
   id: string;
@@ -42,6 +43,40 @@ const Workspace: React.FC = () => {
     key: 'workspaceNotes',
     defaultValue: ''
   });
+
+  const exportData = (type: 'missions' | 'waypoints' | 'notes' | 'all') => {
+    let data: any;
+    let filename: string;
+    
+    if (type === 'missions') {
+      data = missionLogs;
+      filename = `missions_${new Date().toISOString().split('T')[0]}.json`;
+    } else if (type === 'waypoints') {
+      data = waypoints;
+      filename = `waypoints_${new Date().toISOString().split('T')[0]}.json`;
+    } else if (type === 'notes') {
+      data = notes;
+      filename = `field_notes_${new Date().toISOString().split('T')[0]}.txt`;
+    } else {
+      data = { missionLogs, waypoints, notes, exportedAt: new Date().toISOString() };
+      filename = `workspace_export_${new Date().toISOString().split('T')[0]}.json`;
+    }
+
+    const blob = type === 'notes' 
+      ? new Blob([data], { type: 'text/plain' })
+      : new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    toast.success('Export Complete', { description: `${filename} downloaded` });
+  };
 
   const addMissionLog = () => {
     const newLog: MissionLog = {
@@ -90,12 +125,21 @@ const Workspace: React.FC = () => {
                 <FileText className="h-5 w-5" />
                 Mission Logs
               </h2>
-              <button
-                onClick={addMissionLog}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent transition-colors"
-              >
-                <Plus className="h-3 w-3" /> Add
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => exportData('missions')}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent transition-colors"
+                  title="Export Missions"
+                >
+                  <Download className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={addMissionLog}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> Add
+                </button>
+              </div>
             </div>
             <ScrollArea className="flex-1">
               <div className="space-y-2 pr-2">
@@ -165,12 +209,21 @@ const Workspace: React.FC = () => {
                 <MapPin className="h-5 w-5" />
                 Waypoints
               </h2>
-              <button
-                onClick={addWaypoint}
-                className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent transition-colors"
-              >
-                <Plus className="h-3 w-3" /> Add
-              </button>
+              <div className="flex gap-1">
+                <button
+                  onClick={() => exportData('waypoints')}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent transition-colors"
+                  title="Export Waypoints"
+                >
+                  <Download className="h-3 w-3" />
+                </button>
+                <button
+                  onClick={addWaypoint}
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent transition-colors"
+                >
+                  <Plus className="h-3 w-3" /> Add
+                </button>
+              </div>
             </div>
             <ScrollArea className="flex-1">
               <div className="space-y-2 pr-2">
@@ -254,6 +307,15 @@ const Workspace: React.FC = () => {
           WORKSPACE
         </h1>
         <div className="flex items-center gap-2">
+          {/* Export All Button */}
+          <button
+            onClick={() => exportData('all')}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent transition-colors"
+          >
+            <Download className="h-4 w-4" />
+            Export All
+          </button>
+          
           {/* Split Mode Toggle */}
           <div className="flex items-center gap-1 border border-border/50 rounded p-0.5">
             <button
@@ -297,7 +359,7 @@ const Workspace: React.FC = () => {
       </div>
 
       {/* Panel Selectors */}
-      <div className="flex items-center gap-4 mb-4">
+      <div className="flex items-center gap-4 mb-3">
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-muted-foreground">LEFT:</span>
           <select

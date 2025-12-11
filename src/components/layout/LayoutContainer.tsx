@@ -203,9 +203,11 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
           <ResizablePanel defaultSize={leftPanelSize} minSize={30} maxSize={75} onResize={setLeftPanelSize}>
             <SortableContext items={leftPanels.map(p => p.id)} strategy={rectSortingStrategy}>
               <div className="h-full flex flex-col gap-1 pr-1 overflow-y-auto">
-                {leftPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[180px]" data-panel={panel.id}>
+                {leftPanels.map(panel => <div key={panel.id} id={`panel-${panel.id}`} className="transition-all duration-300">
+                  <DraggablePanel id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[180px]">
                     {renderPanelContent(panel)}
-                  </DraggablePanel>)}
+                  </DraggablePanel>
+                </div>)}
               </div>
             </SortableContext>
           </ResizablePanel>
@@ -216,9 +218,11 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
           <ResizablePanel defaultSize={100 - leftPanelSize} minSize={25} maxSize={70}>
             <SortableContext items={rightPanels.map(p => p.id)} strategy={rectSortingStrategy}>
               <div className="h-full grid grid-cols-2 gap-1 pl-1 overflow-y-auto auto-rows-min">
-                {rightPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[150px]" data-panel={panel.id}>
+                {rightPanels.map(panel => <div key={panel.id} id={`panel-${panel.id}`} className="transition-all duration-300">
+                  <DraggablePanel id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[150px]">
                     {renderPanelContent(panel)}
-                  </DraggablePanel>)}
+                  </DraggablePanel>
+                </div>)}
               </div>
             </SortableContext>
           </ResizablePanel>

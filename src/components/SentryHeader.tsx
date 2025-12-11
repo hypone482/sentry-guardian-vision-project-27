@@ -88,11 +88,15 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
           {quickLinks.map(link => {
           const Icon = link.icon;
           return <button key={link.section} onClick={() => {
-            const el = document.querySelector(`[data-panel="${link.section}"]`);
-            el?.scrollIntoView({
-              behavior: 'smooth',
-              block: 'center'
-            });
+            const el = document.getElementById(`panel-${link.section}`);
+            if (el) {
+              el.scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+              });
+              el.classList.add('ring-2', 'ring-sentry-primary');
+              setTimeout(() => el.classList.remove('ring-2', 'ring-sentry-primary'), 2000);
+            }
           }} className="flex items-center gap-1 px-2 py-1 rounded border border-border/40 hover:border-sentry-accent/50 hover:bg-sentry-accent/10 transition-colors text-[10px] text-muted-foreground hover:text-sentry-accent" title={`Jump to ${link.label}`}>
                 <Icon className="h-3 w-3" />
                 <span className="hidden lg:inline">{link.label}</span>
