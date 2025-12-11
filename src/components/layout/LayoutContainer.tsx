@@ -186,7 +186,7 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
   }
   return <div className="flex flex-col h-full gap-1">
       {/* Panel Toggle Bar */}
-      <div className="flex-wrap gap-1 px-2 py-1.5 bg-card/30 rounded border border-border/30 flex items-start justify-center">
+      <div className="flex-wrap gap-1 px-2 py-1.5 bg-card/ rounded border border-border/50 items-start justify-end flex flex-row">
         <span className="text-[10px] text-muted-foreground font-mono mr-2">PANELS:</span>
         {panels.map(panel => <button key={panel.id} onClick={() => togglePanelVisibility(panel.id)} className={cn("text-[10px] px-1.5 py-0.5 rounded transition-colors font-mono", panel.visible ? "bg-primary/20 text-primary border border-primary/40" : "bg-muted/20 text-muted-foreground border border-border/40")}>
             {panel.title}
@@ -214,7 +214,7 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
 
           {/* Right Column */}
           <ResizablePanel defaultSize={100 - leftPanelSize} minSize={25} maxSize={70}>
-            <SortableContext items={rightPanels.map(p => p.id)} strategy={rectSortingStrategy}>
+            <SortableContext items={rightPanels.map(p => p.id)} strategy={rectSortingStrategy} className="mx-[5px] my-[5px]">
               <div className="h-full grid grid-cols-2 gap-1 pl-1 overflow-y-auto auto-rows-min">
                 {rightPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[150px]">
                     {renderPanelContent(panel)}
