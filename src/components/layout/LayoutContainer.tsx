@@ -214,7 +214,7 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
 
           {/* Right Column */}
           <ResizablePanel defaultSize={100 - leftPanelSize} minSize={25} maxSize={70}>
-            <SortableContext items={rightPanels.map(p => p.id)} strategy={rectSortingStrategy} className="mx-[5px] my-[5px]">
+            <SortableContext items={rightPanels.map(p => p.id)} strategy={rectSortingStrategy} className="my-0 mx-0">
               <div className="h-full grid grid-cols-2 gap-1 pl-1 overflow-y-auto auto-rows-min">
                 {rightPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[150px]">
                     {renderPanelContent(panel)}
