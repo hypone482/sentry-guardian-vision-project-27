@@ -14,14 +14,12 @@ import JoystickControl from '@/components/JoystickControl';
 import SystemData from '@/components/SystemData';
 import EventLog, { LogEvent } from '@/components/EventLog';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
-
 interface PanelConfig {
   id: string;
   title: string;
   visible: boolean;
   column: 'left' | 'right';
 }
-
 interface LayoutContainerProps {
   systemActive: boolean;
   sensitivity: number;
@@ -37,20 +35,57 @@ interface LayoutContainerProps {
   onReset: () => void;
   onMotionDetected: (targets: any[]) => void;
 }
-
-const DEFAULT_PANELS: PanelConfig[] = [
-  { id: 'video', title: 'Video Feed', visible: true, column: 'left' },
-  { id: 'radar3d', title: '3D Radar', visible: true, column: 'left' },
-  { id: 'globe3d', title: '3D Globe', visible: true, column: 'right' },
-  { id: 'control', title: 'Control', visible: true, column: 'right' },
-  { id: 'status', title: 'Status', visible: true, column: 'right' },
-  { id: 'radar', title: 'Radar', visible: true, column: 'right' },
-  { id: 'gpsmap', title: 'GPS Map', visible: true, column: 'right' },
-  { id: 'joystick', title: 'Joystick', visible: true, column: 'right' },
-  { id: 'data', title: 'Data', visible: true, column: 'left' },
-  { id: 'events', title: 'Events', visible: true, column: 'left' },
-];
-
+const DEFAULT_PANELS: PanelConfig[] = [{
+  id: 'video',
+  title: 'Video Feed',
+  visible: true,
+  column: 'left'
+}, {
+  id: 'radar3d',
+  title: '3D Radar',
+  visible: true,
+  column: 'left'
+}, {
+  id: 'globe3d',
+  title: '3D Globe',
+  visible: true,
+  column: 'right'
+}, {
+  id: 'control',
+  title: 'Control',
+  visible: true,
+  column: 'right'
+}, {
+  id: 'status',
+  title: 'Status',
+  visible: true,
+  column: 'right'
+}, {
+  id: 'radar',
+  title: 'Radar',
+  visible: true,
+  column: 'right'
+}, {
+  id: 'gpsmap',
+  title: 'GPS Map',
+  visible: true,
+  column: 'right'
+}, {
+  id: 'joystick',
+  title: 'Joystick',
+  visible: true,
+  column: 'right'
+}, {
+  id: 'data',
+  title: 'Data',
+  visible: true,
+  column: 'left'
+}, {
+  id: 'events',
+  title: 'Events',
+  visible: true,
+  column: 'left'
+}];
 const LayoutContainer: React.FC<LayoutContainerProps> = ({
   systemActive,
   sensitivity,
@@ -69,23 +104,31 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
   });
   const [fullscreenPanel, setFullscreenPanel] = useState<string | null>(null);
   const [leftPanelSize, setLeftPanelSize] = useState(60);
-  const [userLocation, setUserLocation] = useState<{ lat: number; lng: number } | null>(null);
-
+  const [userLocation, setUserLocation] = useState<{
+    lat: number;
+    lng: number;
+  } | null>(null);
   const handleLocationUpdate = useCallback((lat: number, lng: number) => {
-    setUserLocation({ lat, lng });
+    setUserLocation({
+      lat,
+      lng
+    });
   }, []);
-
   useEffect(() => {
     localStorage.setItem('sentry-panel-layout', JSON.stringify(panels));
   }, [panels]);
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
-  );
-
+  const sensors = useSensors(useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 8
+    }
+  }), useSensor(KeyboardSensor, {
+    coordinateGetter: sortableKeyboardCoordinates
+  }));
   const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
+    const {
+      active,
+      over
+    } = event;
     if (over && active.id !== over.id) {
       setPanels(items => {
         const oldIndex = items.findIndex(item => item.id === active.id);
@@ -94,22 +137,19 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
       });
     }
   }, []);
-
   const togglePanelVisibility = useCallback((id: string) => {
-    setPanels(items =>
-      items.map(item => (item.id === id ? { ...item, visible: !item.visible } : item))
-    );
+    setPanels(items => items.map(item => item.id === id ? {
+      ...item,
+      visible: !item.visible
+    } : item));
   }, []);
-
   const resetLayout = useCallback(() => {
     setPanels(DEFAULT_PANELS);
     setFullscreenPanel(null);
     localStorage.removeItem('sentry-panel-layout');
   }, []);
-
   const leftPanels = panels.filter(p => p.column === 'left' && p.visible);
   const rightPanels = panels.filter(p => p.column === 'right' && p.visible);
-
   const renderPanelContent = (panel: PanelConfig) => {
     switch (panel.id) {
       case 'video':
@@ -136,46 +176,22 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
         return null;
     }
   };
-
   if (fullscreenPanel) {
     const panel = panels.find(p => p.id === fullscreenPanel);
     if (panel) {
-      return (
-        <DraggablePanel
-          id={panel.id}
-          title={panel.title}
-          isFullscreen
-          onToggleFullscreen={() => setFullscreenPanel(null)}
-        >
+      return <DraggablePanel id={panel.id} title={panel.title} isFullscreen onToggleFullscreen={() => setFullscreenPanel(null)}>
           {renderPanelContent(panel)}
-        </DraggablePanel>
-      );
+        </DraggablePanel>;
     }
   }
-
-  return (
-    <div className="flex flex-col h-full gap-1">
+  return <div className="flex flex-col h-full gap-1">
       {/* Panel Toggle Bar */}
-      <div className="flex flex-wrap gap-1 px-2 py-1.5 bg-card/30 rounded border border-border/30">
+      <div className="flex-wrap gap-1 px-2 py-1.5 bg-card/30 rounded border border-border/30 flex items-start justify-center">
         <span className="text-[10px] text-muted-foreground font-mono mr-2">PANELS:</span>
-        {panels.map(panel => (
-          <button
-            key={panel.id}
-            onClick={() => togglePanelVisibility(panel.id)}
-            className={cn(
-              "text-[10px] px-1.5 py-0.5 rounded transition-colors font-mono",
-              panel.visible
-                ? "bg-primary/20 text-primary border border-primary/40"
-                : "bg-muted/20 text-muted-foreground border border-border/40"
-            )}
-          >
+        {panels.map(panel => <button key={panel.id} onClick={() => togglePanelVisibility(panel.id)} className={cn("text-[10px] px-1.5 py-0.5 rounded transition-colors font-mono", panel.visible ? "bg-primary/20 text-primary border border-primary/40" : "bg-muted/20 text-muted-foreground border border-border/40")}>
             {panel.title}
-          </button>
-        ))}
-        <button
-          onClick={resetLayout}
-          className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent border border-accent/40 font-mono hover:bg-accent/30"
-        >
+          </button>)}
+        <button onClick={resetLayout} className="ml-auto text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent border border-accent/40 font-mono hover:bg-accent/30">
           RESET
         </button>
       </div>
@@ -187,18 +203,9 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
           <ResizablePanel defaultSize={leftPanelSize} minSize={30} maxSize={75} onResize={setLeftPanelSize}>
             <SortableContext items={leftPanels.map(p => p.id)} strategy={rectSortingStrategy}>
               <div className="h-full flex flex-col gap-1 pr-1 overflow-y-auto">
-                {leftPanels.map(panel => (
-                  <DraggablePanel
-                    key={panel.id}
-                    id={panel.id}
-                    title={panel.title}
-                    onRemove={() => togglePanelVisibility(panel.id)}
-                    onToggleFullscreen={() => setFullscreenPanel(panel.id)}
-                    className="min-h-[180px]"
-                  >
+                {leftPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[180px]">
                     {renderPanelContent(panel)}
-                  </DraggablePanel>
-                ))}
+                  </DraggablePanel>)}
               </div>
             </SortableContext>
           </ResizablePanel>
@@ -209,25 +216,14 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
           <ResizablePanel defaultSize={100 - leftPanelSize} minSize={25} maxSize={70}>
             <SortableContext items={rightPanels.map(p => p.id)} strategy={rectSortingStrategy}>
               <div className="h-full grid grid-cols-2 gap-1 pl-1 overflow-y-auto auto-rows-min">
-                {rightPanels.map(panel => (
-                  <DraggablePanel
-                    key={panel.id}
-                    id={panel.id}
-                    title={panel.title}
-                    onRemove={() => togglePanelVisibility(panel.id)}
-                    onToggleFullscreen={() => setFullscreenPanel(panel.id)}
-                    className="min-h-[150px]"
-                  >
+                {rightPanels.map(panel => <DraggablePanel key={panel.id} id={panel.id} title={panel.title} onRemove={() => togglePanelVisibility(panel.id)} onToggleFullscreen={() => setFullscreenPanel(panel.id)} className="min-h-[150px]">
                     {renderPanelContent(panel)}
-                  </DraggablePanel>
-                ))}
+                  </DraggablePanel>)}
               </div>
             </SortableContext>
           </ResizablePanel>
         </ResizablePanelGroup>
       </DndContext>
-    </div>
-  );
+    </div>;
 };
-
 export default LayoutContainer;

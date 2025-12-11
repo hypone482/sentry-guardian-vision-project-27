@@ -5,13 +5,24 @@ import { LogEvent } from '@/components/EventLog';
 import { toast } from 'sonner';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
-
 const Index = () => {
-  const [systemActive, setSystemActive] = useOfflineStorage({ key: 'systemActive', defaultValue: false });
-  const [sensitivity, setSensitivity] = useOfflineStorage({ key: 'sensitivity', defaultValue: 50 });
-  const [trackingMode, setTrackingMode] = useOfflineStorage<'passive' | 'active'>({ key: 'trackingMode', defaultValue: 'passive' });
+  const [systemActive, setSystemActive] = useOfflineStorage({
+    key: 'systemActive',
+    defaultValue: false
+  });
+  const [sensitivity, setSensitivity] = useOfflineStorage({
+    key: 'sensitivity',
+    defaultValue: 50
+  });
+  const [trackingMode, setTrackingMode] = useOfflineStorage<'passive' | 'active'>({
+    key: 'trackingMode',
+    defaultValue: 'passive'
+  });
   const [systemStatus, setSystemStatus] = useState<'active' | 'standby' | 'warning' | 'error'>('standby');
-  const [logEvents, setLogEvents] = useOfflineStorage<LogEvent[]>({ key: 'logEvents', defaultValue: [] });
+  const [logEvents, setLogEvents] = useOfflineStorage<LogEvent[]>({
+    key: 'logEvents',
+    defaultValue: []
+  });
   const [detectionData, setDetectionData] = useState<{
     timestamp: Date;
     count: number;
@@ -172,7 +183,7 @@ const Index = () => {
       <OfflineIndicator />
       <div className="sentry-scanline" />
       
-      <div className="max-w-[1920px] mx-auto flex flex-col h-full w-full">
+      <div className="max-w-[1920px] mx-auto h-full w-full flex-col flex items-center justify-start">
         <SentryHeader systemStatus={systemStatus} />
         
         <div className="flex-1 overflow-hidden mt-2">
