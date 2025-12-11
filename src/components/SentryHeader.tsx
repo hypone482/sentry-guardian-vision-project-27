@@ -52,7 +52,7 @@ const SentryHeader: React.FC<SentryHeaderProps> = ({
         width: '100px',
         height: '114px',
         filter: 'brightness(1.3) contrast(1.1) saturate(1.1) drop-shadow(0 0 12px rgba(0, 255, 136, 0.3))'
-      }} className="shadow-inner object-cover border border-double border-yellow-400 rounded-3xl opacity-95" />
+      }} className="shadow-inner border border-double border-yellow-400 rounded-3xl opacity-95 object-contain" />
       </div>
 
       {/* Center - Title, Info, and Navigation */}
