@@ -15,7 +15,7 @@ const App = () => <QueryClientProvider client={queryClient}>
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} className="ml-[25px] mt-[25px] px-[25px] py-[25px] mr-[25px] mb-[25px] pr-[25px] pb-[25px] pl-[25px] pt-[25px]" />
+          <Route path="/" element={<Index />} className="ml-[25px] mt-[25px] mr-[25px] mb-[25px] pr-[25px] pb-[25px] pl-[25px] pt-[25px] mx-0 my-0 px-[5px] py-[5px]" />
           <Route path="/install" element={<Install />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/workspace" element={<Workspace />} />
