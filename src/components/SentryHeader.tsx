@@ -10,17 +10,17 @@ interface SentryHeaderProps {
 
 const SentryHeader: React.FC<SentryHeaderProps> = ({ systemStatus }) => {
   return (
-    <header className="sentry-panel flex items-center justify-between h-auto min-h-[100px] mb-4 py-3 px-6 ml-48">
-      {/* Left side - Logo */}
-      <div className="flex-shrink-0 fixed left-4 top-2 z-50">
+    <header className="sentry-panel flex items-center justify-between h-auto min-h-[120px] mb-4 py-3 px-6 ml-56">
+      {/* Left side - Logo - Fixed centered vertically */}
+      <div className="flex-shrink-0 fixed left-6 top-1/2 -translate-y-1/2 z-50">
         <img
           alt="YOD ALEF Engineering Logo"
           src={logo}
-          className="object-contain rounded-sm drop-shadow-lg"
+          className="object-contain rounded-sm drop-shadow-2xl"
           style={{
-            width: '180px',
-            height: '206px',
-            filter: 'brightness(1.3) contrast(1.15) saturate(1.1)',
+            width: '217px',
+            height: '255px',
+            filter: 'brightness(1.4) contrast(1.2) saturate(1.15) drop-shadow(0 0 20px rgba(0, 255, 136, 0.3))',
           }}
         />
       </div>

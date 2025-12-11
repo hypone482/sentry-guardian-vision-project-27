@@ -3,12 +3,15 @@ import SentryHeader from '@/components/SentryHeader';
 import LayoutContainer from '@/components/layout/LayoutContainer';
 import { LogEvent } from '@/components/EventLog';
 import { toast } from 'sonner';
+import OfflineIndicator from '@/components/OfflineIndicator';
+import { useOfflineStorage } from '@/hooks/useOfflineStorage';
+
 const Index = () => {
-  const [systemActive, setSystemActive] = useState(false);
-  const [sensitivity, setSensitivity] = useState(50);
-  const [trackingMode, setTrackingMode] = useState<'passive' | 'active'>('passive');
+  const [systemActive, setSystemActive] = useOfflineStorage({ key: 'systemActive', defaultValue: false });
+  const [sensitivity, setSensitivity] = useOfflineStorage({ key: 'sensitivity', defaultValue: 50 });
+  const [trackingMode, setTrackingMode] = useOfflineStorage<'passive' | 'active'>({ key: 'trackingMode', defaultValue: 'passive' });
   const [systemStatus, setSystemStatus] = useState<'active' | 'standby' | 'warning' | 'error'>('standby');
-  const [logEvents, setLogEvents] = useState<LogEvent[]>([]);
+  const [logEvents, setLogEvents] = useOfflineStorage<LogEvent[]>({ key: 'logEvents', defaultValue: [] });
   const [detectionData, setDetectionData] = useState<{
     timestamp: Date;
     count: number;
@@ -166,6 +169,7 @@ const Index = () => {
     }
   };
   return <div className="min-h-screen h-screen p-2 md:p-4 overflow-hidden relative bg-sentry-background flex flex-col">
+      <OfflineIndicator />
       <div className="sentry-scanline" />
       
       <div className="max-w-[1920px] mx-auto flex flex-col h-full w-full">
