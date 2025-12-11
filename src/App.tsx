@@ -8,17 +8,14 @@ import Install from "./pages/Install";
 import Settings from "./pages/Settings";
 import Workspace from "./pages/Workspace";
 import NotFound from "./pages/NotFound";
-
 const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
+const App = () => <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Index />} />
+          <Route path="/" element={<Index />} className="ml-[25px] mt-[25px] px-[25px] py-[25px] mr-[25px] mb-[25px] pr-[25px] pb-[25px] pl-[25px] pt-[25px]" />
           <Route path="/install" element={<Install />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/workspace" element={<Workspace />} />
@@ -27,7 +24,5 @@ const App = () => (
         </Routes>
       </BrowserRouter>
     </TooltipProvider>
-  </QueryClientProvider>
-);
-
+  </QueryClientProvider>;
 export default App;
