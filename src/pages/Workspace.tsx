@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Split, Maximize2, Download } from 'lucide-react';
+import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Split, Maximize2, Download, LayoutGrid } from 'lucide-react';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
@@ -36,9 +36,10 @@ const Workspace: React.FC = () => {
     defaultValue: []
   });
 
-  const [splitMode, setSplitMode] = useState<'horizontal' | 'vertical' | 'single'>('horizontal');
+  const [splitMode, setSplitMode] = useState<'horizontal' | 'vertical' | 'single' | 'triple'>('horizontal');
   const [leftPanel, setLeftPanel] = useState<'missions' | 'waypoints' | 'notes'>('missions');
   const [rightPanel, setRightPanel] = useState<'waypoints' | 'notes' | 'missions'>('waypoints');
+  const [centerPanel, setCenterPanel] = useState<'missions' | 'waypoints' | 'notes'>('notes');
   const [notes, setNotes] = useOfflineStorage<string>({
     key: 'workspaceNotes',
     defaultValue: ''
@@ -334,9 +335,19 @@ const Workspace: React.FC = () => {
                 "p-1.5 rounded transition-colors",
                 splitMode === 'horizontal' ? "bg-sentry-primary/20 text-sentry-primary" : "text-muted-foreground hover:text-sentry-accent"
               )}
-              title="Horizontal Split"
+              title="Dual Split"
             >
               <Split className="h-4 w-4" />
+            </button>
+            <button
+              onClick={() => setSplitMode('triple')}
+              className={cn(
+                "p-1.5 rounded transition-colors",
+                splitMode === 'triple' ? "bg-sentry-primary/20 text-sentry-primary" : "text-muted-foreground hover:text-sentry-accent"
+              )}
+              title="Triple Split"
+            >
+              <LayoutGrid className="h-4 w-4" />
             </button>
             <button
               onClick={() => setSplitMode('vertical')}
@@ -372,7 +383,21 @@ const Workspace: React.FC = () => {
             <option value="notes">Notes</option>
           </select>
         </div>
-        {splitMode !== 'single' && (
+        {(splitMode === 'horizontal' || splitMode === 'vertical' || splitMode === 'triple') && (
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-muted-foreground">{splitMode === 'triple' ? 'CENTER:' : 'RIGHT:'}</span>
+            <select
+              value={splitMode === 'triple' ? centerPanel : rightPanel}
+              onChange={(e) => splitMode === 'triple' ? setCenterPanel(e.target.value as any) : setRightPanel(e.target.value as any)}
+              className="text-xs bg-background border border-border/50 rounded px-2 py-1 text-sentry-text"
+            >
+              <option value="missions">Missions</option>
+              <option value="waypoints">Waypoints</option>
+              <option value="notes">Notes</option>
+            </select>
+          </div>
+        )}
+        {splitMode === 'triple' && (
           <div className="flex items-center gap-2">
             <span className="text-[10px] text-muted-foreground">RIGHT:</span>
             <select
@@ -394,6 +419,26 @@ const Workspace: React.FC = () => {
           <div className="sentry-panel p-4 h-full rounded-lg">
             {renderPanelContent(leftPanel)}
           </div>
+        ) : splitMode === 'triple' ? (
+          <ResizablePanelGroup direction="horizontal">
+            <ResizablePanel defaultSize={33} minSize={20}>
+              <div className="sentry-panel p-4 h-full rounded-lg mr-1">
+                {renderPanelContent(leftPanel)}
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={34} minSize={20}>
+              <div className="sentry-panel p-4 h-full rounded-lg mx-1">
+                {renderPanelContent(centerPanel)}
+              </div>
+            </ResizablePanel>
+            <ResizableHandle withHandle />
+            <ResizablePanel defaultSize={33} minSize={20}>
+              <div className="sentry-panel p-4 h-full rounded-lg ml-1">
+                {renderPanelContent(rightPanel)}
+              </div>
+            </ResizablePanel>
+          </ResizablePanelGroup>
         ) : (
           <ResizablePanelGroup direction={splitMode === 'horizontal' ? 'horizontal' : 'vertical'}>
             <ResizablePanel defaultSize={50} minSize={30}>
