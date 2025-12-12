@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Split, Maximize2, Download, LayoutGrid } from 'lucide-react';
+import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Split, Maximize2, Download, LayoutGrid, Upload } from 'lucide-react';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
@@ -77,6 +77,50 @@ const Workspace: React.FC = () => {
     URL.revokeObjectURL(url);
     
     toast.success('Export Complete', { description: `${filename} downloaded` });
+  };
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const content = e.target?.result as string;
+        const data = JSON.parse(content);
+
+        // Check if it's a full workspace export
+        if (data.missionLogs && data.waypoints && data.notes !== undefined) {
+          setMissionLogs(data.missionLogs);
+          setWaypoints(data.waypoints);
+          setNotes(data.notes);
+          toast.success('Import Complete', { description: 'All workspace data imported successfully' });
+        }
+        // Check if it's mission logs array
+        else if (Array.isArray(data) && data.length > 0 && data[0].status !== undefined) {
+          setMissionLogs(prev => [...data, ...prev]);
+          toast.success('Import Complete', { description: `${data.length} mission logs imported` });
+        }
+        // Check if it's waypoints array
+        else if (Array.isArray(data) && data.length > 0 && data[0].lat !== undefined) {
+          setWaypoints(prev => [...prev, ...data]);
+          toast.success('Import Complete', { description: `${data.length} waypoints imported` });
+        }
+        else {
+          toast.error('Import Failed', { description: 'Unrecognized file format' });
+        }
+      } catch (error) {
+        toast.error('Import Failed', { description: 'Invalid JSON file' });
+      }
+    };
+    reader.readAsText(file);
+    
+    // Reset input so same file can be imported again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
   };
 
   const addMissionLog = () => {
@@ -308,6 +352,24 @@ const Workspace: React.FC = () => {
           WORKSPACE
         </h1>
         <div className="flex items-center gap-2">
+          {/* Hidden file input for import */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".json"
+            onChange={handleImport}
+            className="hidden"
+          />
+          
+          {/* Import Button */}
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-primary transition-colors"
+          >
+            <Upload className="h-4 w-4" />
+            Import
+          </button>
+          
           {/* Export All Button */}
           <button
             onClick={() => exportData('all')}
