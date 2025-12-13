@@ -1,7 +1,12 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
+import { TextureLoader } from 'three';
+import earthTexture from '@/assets/earth-texture.jpg';
+import earthNormal from '@/assets/earth-normal.jpg';
+import earthSpecular from '@/assets/earth-specular.jpg';
+import earthClouds from '@/assets/earth-clouds.png';
 
 interface Attack {
   id: string;
@@ -86,21 +91,23 @@ const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 };
 
-// Procedural Earth with realistic styling (no external textures needed)
+// Realistic Earth with NASA textures
 const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const atmosphereRef = useRef<THREE.Mesh>(null);
 
-  // Create continent outlines for major landmasses
-  const continentGeometry = useMemo(() => {
-    const geo = new THREE.SphereGeometry(2.005, 128, 64);
-    return geo;
-  }, []);
+  // Load NASA textures
+  const [colorMap, normalMap, specularMap, cloudsMap] = useLoader(TextureLoader, [
+    earthTexture,
+    earthNormal,
+    earthSpecular,
+    earthClouds
+  ]);
 
-  // Create grid lines for latitude/longitude
+  // Create grid lines for latitude/longitude overlay
   const gridGeometry = useMemo(() => {
-    const geo = new THREE.SphereGeometry(2.008, 72, 36);
+    const geo = new THREE.SphereGeometry(2.015, 72, 36);
     return new THREE.WireframeGeometry(geo);
   }, []);
 
@@ -116,7 +123,7 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
     for (let lat = -80; lat <= 80; lat += 20) {
       const pts: THREE.Vector3[] = [];
       for (let lng = 0; lng <= 360; lng += 3) {
-        pts.push(latLngToVector3(lat, lng - 180, 2.012));
+        pts.push(latLngToVector3(lat, lng - 180, 2.018));
       }
       lines.push(pts);
     }
@@ -129,7 +136,7 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
     for (let lng = -180; lng < 180; lng += 20) {
       const pts: THREE.Vector3[] = [];
       for (let lat = -90; lat <= 90; lat += 3) {
-        pts.push(latLngToVector3(lat, lng, 2.012));
+        pts.push(latLngToVector3(lat, lng, 2.018));
       }
       lines.push(pts);
     }
@@ -138,84 +145,74 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
 
   return (
     <group>
-      {/* Ocean base - deep blue */}
+      {/* Main Earth with NASA texture */}
       <mesh ref={meshRef}>
         <sphereGeometry args={[2, 128, 64]} />
         <meshPhongMaterial
-          color="#0a3d62"
-          emissive="#051d32"
-          emissiveIntensity={0.3}
-          shininess={30}
+          map={colorMap}
+          normalMap={normalMap}
+          specularMap={specularMap}
+          specular={new THREE.Color(0x333333)}
+          shininess={15}
         />
       </mesh>
 
-      {/* Land masses layer - green/brown continents */}
-      <mesh>
-        <sphereGeometry args={[2.003, 128, 64]} />
-        <meshPhongMaterial
-          color="#1a5c3a"
-          transparent
-          opacity={0.85}
-          emissive="#0d2e1d"
-          emissiveIntensity={0.2}
-        />
-      </mesh>
-
-      {/* Grid overlay for tactical look */}
+      {/* Tactical grid overlay */}
       <lineSegments geometry={gridGeometry}>
-        <lineBasicMaterial color="#22c55e" transparent opacity={0.12} />
+        <lineBasicMaterial color="#22c55e" transparent opacity={0.08} />
       </lineSegments>
 
       {/* Latitude lines */}
       {latitudeLines.map((points, i) => (
-        <Line key={`lat-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.25} />
+        <Line key={`lat-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.15} />
       ))}
 
       {/* Longitude lines */}
       {longitudeLines.map((points, i) => (
-        <Line key={`lng-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.25} />
+        <Line key={`lng-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.15} />
       ))}
 
-      {/* Cloud layer - procedural */}
+      {/* Cloud layer with real texture */}
       <mesh ref={cloudsRef}>
-        <sphereGeometry args={[2.04, 64, 64]} />
+        <sphereGeometry args={[2.03, 64, 64]} />
         <meshStandardMaterial
-          color="#ffffff"
+          map={cloudsMap}
           transparent
-          opacity={0.15}
+          opacity={0.35}
           depthWrite={false}
+          blending={THREE.AdditiveBlending}
         />
       </mesh>
 
       {/* Atmosphere glow - blue haze */}
       <mesh ref={atmosphereRef}>
-        <sphereGeometry args={[2.12, 64, 64]} />
+        <sphereGeometry args={[2.08, 64, 64]} />
         <meshBasicMaterial
           color="#4da6ff"
           transparent
-          opacity={0.12}
+          opacity={0.1}
           side={THREE.BackSide}
         />
       </mesh>
 
       {/* Outer glow - blue ring */}
       <mesh>
-        <sphereGeometry args={[2.25, 32, 32]} />
+        <sphereGeometry args={[2.2, 32, 32]} />
         <meshBasicMaterial
           color="#1e90ff"
           transparent
-          opacity={0.06}
+          opacity={0.05}
           side={THREE.BackSide}
         />
       </mesh>
 
       {/* Equator highlight */}
       <Line 
-        points={Array.from({ length: 121 }, (_, i) => latLngToVector3(0, i * 3 - 180, 2.015))} 
+        points={Array.from({ length: 121 }, (_, i) => latLngToVector3(0, i * 3 - 180, 2.02))} 
         color="#ffcc00" 
         lineWidth={1} 
         transparent 
-        opacity={0.4} 
+        opacity={0.3} 
       />
 
       {/* User location marker */}
@@ -223,7 +220,6 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
     </group>
   );
 };
-
 const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
   const position = latLngToVector3(lat, lng, 2.06);
   const pulseRef = useRef<THREE.Mesh>(null);
@@ -581,6 +577,81 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
     setAttacks(initialAttacks);
   }, [currentLocation.lat, currentLocation.lng]);
 
+  // Audio context for proximity alerts
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const lastAlertTimeRef = useRef<number>(0);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [proximityAlertActive, setProximityAlertActive] = useState(false);
+
+  // Initialize audio context
+  useEffect(() => {
+    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    return () => {
+      audioContextRef.current?.close();
+    };
+  }, []);
+
+  // Play proximity alert sound
+  const playProximityAlert = useCallback((threatLevel: 'critical' | 'high' | 'medium' | 'low') => {
+    if (!audioEnabled || !audioContextRef.current) return;
+    
+    const now = Date.now();
+    if (now - lastAlertTimeRef.current < 2000) return; // 2 second cooldown
+    lastAlertTimeRef.current = now;
+    
+    const ctx = audioContextRef.current;
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
+
+    // Create oscillator for alert sound
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
+    
+    // Different frequencies for different threat levels
+    const frequencies = {
+      critical: 880, // High A - urgent
+      high: 660,     // High E
+      medium: 440,   // A4
+      low: 330       // E4
+    };
+    
+    oscillator.frequency.setValueAtTime(frequencies[threatLevel], ctx.currentTime);
+    oscillator.type = 'square';
+    
+    // Pulse pattern for alert
+    gainNode.gain.setValueAtTime(0, ctx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
+    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15);
+    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.2);
+    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
+    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.35);
+    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.5);
+    
+    setProximityAlertActive(true);
+    setTimeout(() => setProximityAlertActive(false), 500);
+  }, [audioEnabled]);
+
+  // Check for proximity threats
+  useEffect(() => {
+    const proximityThreshold = 1000; // 1000km proximity alert
+    const criticalThreshold = 500;   // 500km critical alert
+    
+    attacks.forEach(attack => {
+      if (attack.distance < criticalThreshold && attack.threatLevel === 'critical') {
+        playProximityAlert('critical');
+      } else if (attack.distance < proximityThreshold && (attack.threatLevel === 'critical' || attack.threatLevel === 'high')) {
+        playProximityAlert(attack.threatLevel);
+      }
+    });
+  }, [attacks, playProximityAlert]);
+
   // Animate attack progress
   useEffect(() => {
     if (!active) return;
@@ -675,10 +746,13 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
       </Canvas>
 
       {/* Threat Level HUD */}
-      <div className="absolute top-2 left-2 bg-black/85 backdrop-blur rounded-lg border border-red-500/30 p-2 shadow-lg shadow-red-500/10">
+      <div className={`absolute top-2 left-2 bg-black/85 backdrop-blur rounded-lg border p-2 shadow-lg transition-all ${proximityAlertActive ? 'border-red-500 shadow-red-500/50 animate-pulse' : 'border-red-500/30 shadow-red-500/10'}`}>
         <div className="text-[10px] font-display text-red-400 mb-2 flex items-center gap-1.5">
-          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          <span className={`w-2 h-2 bg-red-500 rounded-full ${proximityAlertActive ? 'animate-ping' : 'animate-pulse'}`} />
           INCOMING THREATS
+          {proximityAlertActive && (
+            <span className="ml-1 text-red-500 font-bold animate-pulse">⚠ PROXIMITY</span>
+          )}
         </div>
         <div className="space-y-1 text-[9px] font-mono">
           <div className="flex items-center gap-2">
@@ -702,6 +776,13 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
             <span className="text-yellow-500">{threatCounts.low}</span>
           </div>
         </div>
+        {/* Audio toggle */}
+        <button 
+          onClick={() => setAudioEnabled(!audioEnabled)}
+          className={`mt-2 text-[8px] font-mono px-2 py-0.5 rounded border transition-colors ${audioEnabled ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-red-500/50 text-red-400 bg-red-500/10'}`}
+        >
+          {audioEnabled ? '🔊 AUDIO ON' : '🔇 AUDIO OFF'}
+        </button>
       </div>
 
       {/* Active Threats Panel */}
