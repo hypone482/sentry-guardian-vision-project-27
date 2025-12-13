@@ -1,7 +1,22 @@
-import React, { useRef, useMemo, useState, useEffect } from 'react';
+import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
 import { Canvas, useFrame, useLoader } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
+
+interface Attack {
+  id: string;
+  originLat: number;
+  originLng: number;
+  originName: string;
+  originCountry: string;
+  type: 'missile' | 'drone' | 'aircraft' | 'cyber' | 'artillery';
+  threatLevel: 'critical' | 'high' | 'medium' | 'low';
+  velocity: number; // km/h
+  altitude: number; // meters
+  eta: number; // seconds
+  progress: number; // 0-1 animation progress
+  distance: number; // km from target
+}
 
 interface Target {
   id: string;
@@ -30,314 +45,561 @@ const latLngToVector3 = (lat: number, lng: number, radius: number): THREE.Vector
   return new THREE.Vector3(x, y, z);
 };
 
-// Real Earth with texture
-const Earth = ({ userLocation }: { userLocation?: { lat: number; lng: number } | null }) => {
+// Calculate great circle arc points between two lat/lng coordinates
+const getArcPoints = (
+  startLat: number, startLng: number,
+  endLat: number, endLng: number,
+  radius: number,
+  segments: number = 50,
+  progress: number = 1,
+  arcHeight: number = 0.3
+): THREE.Vector3[] => {
+  const points: THREE.Vector3[] = [];
+  const activeSegments = Math.floor(segments * progress);
+  
+  for (let i = 0; i <= activeSegments; i++) {
+    const t = i / segments;
+    
+    // Spherical interpolation
+    const lat = startLat + (endLat - startLat) * t;
+    const lng = startLng + (endLng - startLng) * t;
+    
+    // Add arc height (parabolic curve for missile trajectory)
+    const heightMultiplier = Math.sin(t * Math.PI) * arcHeight;
+    const currentRadius = radius + heightMultiplier;
+    
+    points.push(latLngToVector3(lat, lng, currentRadius));
+  }
+  
+  return points;
+};
+
+// Calculate distance between two lat/lng points in km
+const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
+  const R = 6371; // Earth radius in km
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLng = (lng2 - lng1) * Math.PI / 180;
+  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLng / 2) * Math.sin(dLng / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Real Earth with NASA-style textures
+const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
+  const atmosphereRef = useRef<THREE.Mesh>(null);
 
-  // Create procedural earth colors
-  const earthMaterial = useMemo(() => {
-    return new THREE.MeshPhongMaterial({
-      color: '#1a4d2e',
-      emissive: '#0a1f12',
-      emissiveIntensity: 0.1,
-      shininess: 25,
-    });
-  }, []);
-
-  // Create grid lines for continents effect
-  const gridGeometry = useMemo(() => {
-    const geo = new THREE.SphereGeometry(2.01, 72, 36);
-    return new THREE.WireframeGeometry(geo);
-  }, []);
+  // Load Earth textures
+  const [earthTexture, bumpTexture, specularTexture, cloudsTexture] = useLoader(
+    THREE.TextureLoader,
+    [
+      'https://unpkg.com/three-globe@2.31.0/example/img/earth-blue-marble.jpg',
+      'https://unpkg.com/three-globe@2.31.0/example/img/earth-topology.png',
+      'https://unpkg.com/three-globe@2.31.0/example/img/earth-water.png',
+      'https://unpkg.com/three-globe@2.31.0/example/img/earth-clouds.png'
+    ]
+  );
 
   useFrame((state) => {
-    if (meshRef.current) {
-      meshRef.current.rotation.y += 0.0008;
-    }
     if (cloudsRef.current) {
-      cloudsRef.current.rotation.y += 0.001;
+      cloudsRef.current.rotation.y += 0.0003;
     }
   });
 
   return (
     <group>
-      {/* Ocean base */}
+      {/* Main Earth sphere with realistic texture */}
       <mesh ref={meshRef}>
-        <sphereGeometry args={[2, 64, 32]} />
+        <sphereGeometry args={[2, 64, 64]} />
         <meshPhongMaterial
-          color="#0c2d48"
-          emissive="#051a2e"
-          emissiveIntensity={0.2}
-          shininess={50}
+          map={earthTexture}
+          bumpMap={bumpTexture}
+          bumpScale={0.05}
+          specularMap={specularTexture}
+          specular={new THREE.Color('#333333')}
+          shininess={5}
         />
       </mesh>
 
-      {/* Land masses (simplified) */}
-      <mesh rotation={[0, 0, 0]}>
-        <sphereGeometry args={[2.005, 64, 32]} />
-        <meshPhongMaterial
-          color="#1a4d2e"
-          transparent
-          opacity={0.7}
-          emissive="#0d2818"
-          emissiveIntensity={0.1}
-        />
-      </mesh>
-
-      {/* Grid overlay */}
-      <lineSegments geometry={gridGeometry}>
-        <lineBasicMaterial color="#22c55e" transparent opacity={0.15} />
-      </lineSegments>
-
-      {/* Latitude lines */}
-      {[-60, -30, 0, 30, 60].map((lat) => (
-        <LatitudeLine key={lat} latitude={lat} />
-      ))}
-
-      {/* Longitude lines */}
-      {[0, 30, 60, 90, 120, 150, 180, -30, -60, -90, -120, -150].map((lng) => (
-        <LongitudeLine key={lng} longitude={lng} />
-      ))}
-
-      {/* Atmosphere */}
+      {/* Cloud layer */}
       <mesh ref={cloudsRef}>
-        <sphereGeometry args={[2.15, 64, 32]} />
-        <meshStandardMaterial
-          color="#3b82f6"
+        <sphereGeometry args={[2.02, 64, 64]} />
+        <meshPhongMaterial
+          map={cloudsTexture}
           transparent
-          opacity={0.08}
+          opacity={0.35}
+          depthWrite={false}
+        />
+      </mesh>
+
+      {/* Atmosphere glow */}
+      <mesh ref={atmosphereRef}>
+        <sphereGeometry args={[2.15, 64, 64]} />
+        <meshBasicMaterial
+          color="#4da6ff"
+          transparent
+          opacity={0.1}
           side={THREE.BackSide}
         />
       </mesh>
 
       {/* Outer glow */}
       <mesh>
-        <sphereGeometry args={[2.3, 32, 16]} />
+        <sphereGeometry args={[2.3, 32, 32]} />
         <meshBasicMaterial
-          color="#22c55e"
+          color="#1e90ff"
           transparent
           opacity={0.05}
           side={THREE.BackSide}
         />
       </mesh>
 
-      {userLocation && <UserMarker lat={userLocation.lat} lng={userLocation.lng} />}
+      {/* User location marker */}
+      <UserMarker lat={userLocation.lat} lng={userLocation.lng} />
     </group>
   );
 };
 
-const LatitudeLine = ({ latitude }: { latitude: number }) => {
-  const points = useMemo(() => {
-    const pts: THREE.Vector3[] = [];
-    for (let lng = 0; lng <= 360; lng += 5) {
-      pts.push(latLngToVector3(latitude, lng - 180, 2.02));
-    }
-    return pts;
-  }, [latitude]);
-
-  return (
-    <Line points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.3} />
-  );
-};
-
-const LongitudeLine = ({ longitude }: { longitude: number }) => {
-  const points = useMemo(() => {
-    const pts: THREE.Vector3[] = [];
-    for (let lat = -90; lat <= 90; lat += 5) {
-      pts.push(latLngToVector3(lat, longitude, 2.02));
-    }
-    return pts;
-  }, [longitude]);
-
-  return (
-    <Line points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.3} />
-  );
-};
-
 const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
-  const position = latLngToVector3(lat, lng, 2.08);
+  const position = latLngToVector3(lat, lng, 2.06);
   const pulseRef = useRef<THREE.Mesh>(null);
+  const outerPulseRef = useRef<THREE.Mesh>(null);
+  const beamRef = useRef<THREE.Mesh>(null);
 
   useFrame((state) => {
+    const time = state.clock.elapsedTime;
     if (pulseRef.current) {
-      const scale = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.3;
+      const scale = 1 + Math.sin(time * 4) * 0.3;
       pulseRef.current.scale.setScalar(scale);
+    }
+    if (outerPulseRef.current) {
+      const scale = 1.5 + Math.sin(time * 2) * 0.5;
+      outerPulseRef.current.scale.setScalar(scale);
+      const mat = outerPulseRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.3 - Math.sin(time * 2) * 0.15;
+    }
+    if (beamRef.current) {
+      const mat = beamRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = 0.4 + Math.sin(time * 3) * 0.2;
     }
   });
 
   return (
     <group position={position}>
+      {/* Defense shield effect */}
+      <mesh ref={outerPulseRef}>
+        <ringGeometry args={[0.12, 0.15, 32]} />
+        <meshBasicMaterial color="#00ff88" transparent opacity={0.3} side={THREE.DoubleSide} />
+      </mesh>
+      
+      {/* Main marker */}
       <mesh>
-        <sphereGeometry args={[0.05, 16, 16]} />
-        <meshStandardMaterial color="#3b82f6" emissive="#3b82f6" emissiveIntensity={0.8} />
+        <sphereGeometry args={[0.06, 16, 16]} />
+        <meshStandardMaterial color="#00ff88" emissive="#00ff88" emissiveIntensity={1} />
       </mesh>
+      
+      {/* Pulse ring */}
       <mesh ref={pulseRef}>
-        <ringGeometry args={[0.06, 0.08, 32]} />
-        <meshBasicMaterial color="#3b82f6" transparent opacity={0.6} side={THREE.DoubleSide} />
+        <ringGeometry args={[0.07, 0.09, 32]} />
+        <meshBasicMaterial color="#00ff88" transparent opacity={0.7} side={THREE.DoubleSide} />
       </mesh>
+      
+      {/* Vertical beam */}
+      <mesh ref={beamRef} position={[0, 0.15, 0]}>
+        <cylinderGeometry args={[0.01, 0.01, 0.3, 8]} />
+        <meshBasicMaterial color="#00ff88" transparent opacity={0.4} />
+      </mesh>
+      
       <Html distanceFactor={8}>
-        <div className="bg-card/90 px-1.5 py-0.5 rounded text-[9px] font-mono text-blue-400 whitespace-nowrap border border-blue-500/30">
-          YOU
+        <div className="bg-emerald-900/90 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 whitespace-nowrap border border-emerald-500/50 shadow-lg shadow-emerald-500/20">
+          <div className="font-bold">YOUR LOCATION</div>
+          <div className="text-[8px] text-emerald-300/70">ETHIOPIA - PROTECTED</div>
         </div>
       </Html>
     </group>
   );
 };
 
-const TargetMarker = ({ target }: { target: Target }) => {
-  const position = latLngToVector3(target.lat, target.lng, 2 + target.altitude * 0.0003);
+// Attack origin marker
+const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
+  const position = latLngToVector3(attack.originLat, attack.originLng, 2.05);
   const ref = useRef<THREE.Mesh>(null);
-  const color = target.type === 'hostile' ? '#ef4444' : target.type === 'friendly' ? '#22c55e' : '#eab308';
+  
+  const threatColors = {
+    critical: '#ff0000',
+    high: '#ff4444',
+    medium: '#ff8800',
+    low: '#ffcc00'
+  };
+  
+  const typeIcons = {
+    missile: '🚀',
+    drone: '🛩️',
+    aircraft: '✈️',
+    cyber: '💻',
+    artillery: '💥'
+  };
+  
+  const color = threatColors[attack.threatLevel];
 
   useFrame((state) => {
     if (ref.current) {
-      ref.current.rotation.y += 0.02;
+      ref.current.rotation.y += 0.03;
+      const scale = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
+      ref.current.scale.setScalar(scale);
     }
   });
 
   return (
     <group position={position}>
       <mesh ref={ref}>
-        <octahedronGeometry args={[0.04]} />
-        <meshStandardMaterial color={color} emissive={color} emissiveIntensity={0.8} />
+        <octahedronGeometry args={[0.05]} />
+        <meshStandardMaterial 
+          color={color} 
+          emissive={color} 
+          emissiveIntensity={1} 
+        />
       </mesh>
       <Html distanceFactor={8}>
-        <div
-          className="bg-card/80 px-1 py-0.5 rounded text-[8px] font-mono whitespace-nowrap border"
-          style={{ color, borderColor: color }}
+        <div 
+          className="px-1.5 py-0.5 rounded text-[8px] font-mono whitespace-nowrap border shadow-lg"
+          style={{ 
+            backgroundColor: 'rgba(0,0,0,0.85)', 
+            color, 
+            borderColor: color,
+            boxShadow: `0 0 10px ${color}40`
+          }}
         >
-          {target.label}
+          <div className="flex items-center gap-1">
+            <span>{typeIcons[attack.type]}</span>
+            <span className="font-bold">{attack.originCountry}</span>
+          </div>
+          <div className="text-[7px] opacity-80">{attack.originName}</div>
         </div>
       </Html>
     </group>
   );
 };
 
-const TrajectoryLine = ({ target }: { target: Target }) => {
-  const color = target.type === 'hostile' ? '#ef4444' : target.type === 'friendly' ? '#22c55e' : '#eab308';
+// Attack trajectory arc
+const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat: number; targetLng: number }) => {
+  const lineRef = useRef<any>(null);
+  const headRef = useRef<THREE.Mesh>(null);
+  
+  const threatColors = {
+    critical: '#ff0000',
+    high: '#ff4444',
+    medium: '#ff8800',
+    low: '#ffcc00'
+  };
+  
+  const color = threatColors[attack.threatLevel];
+  
+  // Get arc points for the trajectory
+  const arcPoints = useMemo(() => {
+    return getArcPoints(
+      attack.originLat, attack.originLng,
+      targetLat, targetLng,
+      2,
+      60,
+      attack.progress,
+      0.4 + (attack.altitude / 50000) * 0.3
+    );
+  }, [attack, targetLat, targetLng]);
 
-  // Trail points
-  const trailPoints = useMemo(() => {
-    if (!target.trajectory) return [];
-    return target.trajectory.map(p => latLngToVector3(p.lat, p.lng, 2 + p.altitude * 0.0003));
-  }, [target.trajectory]);
+  // Missile head position
+  const headPosition = arcPoints.length > 0 ? arcPoints[arcPoints.length - 1] : null;
 
-  // Predicted path
-  const predictedPoints = useMemo(() => {
-    if (!target.predictedPath) return [];
-    const current = latLngToVector3(target.lat, target.lng, 2 + target.altitude * 0.0003);
-    return [current, ...target.predictedPath.map(p => latLngToVector3(p.lat, p.lng, 2 + p.altitude * 0.0003))];
-  }, [target]);
+  useFrame((state) => {
+    if (headRef.current && headPosition) {
+      headRef.current.rotation.y += 0.1;
+      const scale = 0.8 + Math.sin(state.clock.elapsedTime * 10) * 0.3;
+      headRef.current.scale.setScalar(scale);
+    }
+  });
+
+  if (arcPoints.length < 2) return null;
 
   return (
     <group>
-      {trailPoints.length > 1 && (
-        <Line points={trailPoints} color={color} lineWidth={1.5} transparent opacity={0.5} dashed dashSize={0.05} gapSize={0.02} />
-      )}
-      {predictedPoints.length > 1 && (
-        <Line points={predictedPoints} color={color} lineWidth={1} transparent opacity={0.3} dashed dashSize={0.08} gapSize={0.04} />
+      {/* Main trajectory arc */}
+      <Line 
+        points={arcPoints} 
+        color={color} 
+        lineWidth={2} 
+        transparent 
+        opacity={0.8}
+      />
+      
+      {/* Glowing trail effect */}
+      <Line 
+        points={arcPoints} 
+        color={color} 
+        lineWidth={4} 
+        transparent 
+        opacity={0.3}
+      />
+      
+      {/* Missile/threat head */}
+      {headPosition && (
+        <mesh ref={headRef} position={headPosition}>
+          <coneGeometry args={[0.03, 0.06, 8]} />
+          <meshStandardMaterial 
+            color={color} 
+            emissive={color} 
+            emissiveIntensity={1.5} 
+          />
+        </mesh>
       )}
     </group>
   );
 };
 
-const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, className }) => {
-  const [targets, setTargets] = useState<Target[]>([
-    {
-      id: '1', lat: 51.5074, lng: -0.1278, altitude: 8000, type: 'hostile', label: 'TGT-ALPHA', velocity: 450,
-      trajectory: [
-        { lat: 50.5, lng: -1.2, altitude: 7500 },
-        { lat: 49.5, lng: -2.3, altitude: 7000 },
-        { lat: 48.5, lng: -3.4, altitude: 6500 },
-      ],
-      predictedPath: [
-        { lat: 52.5, lng: 0.8, altitude: 8500 },
-        { lat: 53.5, lng: 1.9, altitude: 9000 },
-        { lat: 54.5, lng: 3.0, altitude: 9500 },
-      ]
-    },
-    {
-      id: '2', lat: 35.6762, lng: 139.6503, altitude: 10000, type: 'friendly', label: 'ALLY-01', velocity: 380,
-      trajectory: [
-        { lat: 34.7, lng: 138.6, altitude: 9500 },
-        { lat: 33.8, lng: 137.5, altitude: 9000 },
-      ],
-      predictedPath: [
-        { lat: 36.6, lng: 140.7, altitude: 10500 },
-        { lat: 37.5, lng: 141.8, altitude: 11000 },
-      ]
-    },
-    {
-      id: '3', lat: -33.8688, lng: 151.2093, altitude: 5000, type: 'unknown', label: 'UNK-03', velocity: 280,
-      trajectory: [
-        { lat: -34.9, lng: 150.2, altitude: 4500 },
-        { lat: -35.9, lng: 149.1, altitude: 4000 },
-      ],
-      predictedPath: [
-        { lat: -32.8, lng: 152.3, altitude: 5500 },
-        { lat: -31.7, lng: 153.4, altitude: 6000 },
-      ]
-    },
-    {
-      id: '4', lat: 48.8566, lng: 2.3522, altitude: 7000, type: 'hostile', label: 'TGT-BRAVO', velocity: 520,
-      trajectory: [
-        { lat: 47.9, lng: 1.4, altitude: 6500 },
-        { lat: 47.0, lng: 0.5, altitude: 6000 },
-      ],
-      predictedPath: [
-        { lat: 49.8, lng: 3.3, altitude: 7500 },
-        { lat: 50.7, lng: 4.4, altitude: 8000 },
-      ]
-    },
-  ]);
+// Impact zone indicator
+const ImpactZone = ({ lat, lng, threatCount }: { lat: number; lng: number; threatCount: number }) => {
+  const position = latLngToVector3(lat, lng, 2.01);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const ring2Ref = useRef<THREE.Mesh>(null);
+  
+  useFrame((state) => {
+    const time = state.clock.elapsedTime;
+    if (ringRef.current) {
+      const scale = 1 + (time % 2) * 0.5;
+      ringRef.current.scale.setScalar(scale);
+      const mat = ringRef.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = Math.max(0, 0.5 - (time % 2) * 0.25);
+    }
+    if (ring2Ref.current) {
+      const scale = 1 + ((time + 1) % 2) * 0.5;
+      ring2Ref.current.scale.setScalar(scale);
+      const mat = ring2Ref.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = Math.max(0, 0.5 - ((time + 1) % 2) * 0.25);
+    }
+  });
 
+  return (
+    <group position={position}>
+      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.08, 0.1, 32]} />
+        <meshBasicMaterial color="#ff0000" transparent opacity={0.5} side={THREE.DoubleSide} />
+      </mesh>
+      <mesh ref={ring2Ref} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.08, 0.1, 32]} />
+        <meshBasicMaterial color="#ff0000" transparent opacity={0.5} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  );
+};
+
+// Loading component for texture loading
+const GlobeLoader = () => (
+  <mesh>
+    <sphereGeometry args={[2, 32, 32]} />
+    <meshBasicMaterial color="#0a1628" wireframe />
+  </mesh>
+);
+
+const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, className }) => {
+  // Default to Ethiopia if no GPS location
+  const defaultLocation = { lat: 9.0192, lng: 38.7525 }; // Addis Ababa, Ethiopia
+  const currentLocation = userLocation || defaultLocation;
+  
+  const [attacks, setAttacks] = useState<Attack[]>([]);
+  const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
+
+  // Initialize attacks from various global locations
+  useEffect(() => {
+    const attackSources: Omit<Attack, 'progress' | 'distance'>[] = [
+      {
+        id: 'atk-1',
+        originLat: 55.7558,
+        originLng: 37.6173,
+        originName: 'Moscow',
+        originCountry: 'RUSSIA',
+        type: 'missile',
+        threatLevel: 'critical',
+        velocity: 5500,
+        altitude: 35000,
+        eta: 1200
+      },
+      {
+        id: 'atk-2',
+        originLat: 39.9042,
+        originLng: 116.4074,
+        originName: 'Beijing',
+        originCountry: 'CHINA',
+        type: 'drone',
+        threatLevel: 'high',
+        velocity: 450,
+        altitude: 8000,
+        eta: 4800
+      },
+      {
+        id: 'atk-3',
+        originLat: 35.6762,
+        originLng: 51.4241,
+        originName: 'Tehran',
+        originCountry: 'IRAN',
+        type: 'missile',
+        threatLevel: 'critical',
+        velocity: 3200,
+        altitude: 25000,
+        eta: 900
+      },
+      {
+        id: 'atk-4',
+        originLat: 39.0392,
+        originLng: 125.7625,
+        originName: 'Pyongyang',
+        originCountry: 'N.KOREA',
+        type: 'missile',
+        threatLevel: 'high',
+        velocity: 4800,
+        altitude: 40000,
+        eta: 2100
+      },
+      {
+        id: 'atk-5',
+        originLat: 24.7136,
+        originLng: 46.6753,
+        originName: 'Riyadh',
+        originCountry: 'SAUDI',
+        type: 'aircraft',
+        threatLevel: 'medium',
+        velocity: 850,
+        altitude: 12000,
+        eta: 1800
+      },
+      {
+        id: 'atk-6',
+        originLat: 33.8688,
+        originLng: 35.5018,
+        originName: 'Beirut',
+        originCountry: 'LEBANON',
+        type: 'drone',
+        threatLevel: 'medium',
+        velocity: 280,
+        altitude: 3000,
+        eta: 2400
+      },
+      {
+        id: 'atk-7',
+        originLat: 15.3694,
+        originLng: 44.1910,
+        originName: 'Sanaa',
+        originCountry: 'YEMEN',
+        type: 'artillery',
+        threatLevel: 'high',
+        velocity: 1200,
+        altitude: 15000,
+        eta: 600
+      },
+      {
+        id: 'atk-8',
+        originLat: 2.0469,
+        originLng: 45.3182,
+        originName: 'Mogadishu',
+        originCountry: 'SOMALIA',
+        type: 'drone',
+        threatLevel: 'low',
+        velocity: 180,
+        altitude: 2000,
+        eta: 1500
+      }
+    ];
+
+    const initialAttacks: Attack[] = attackSources.map(src => ({
+      ...src,
+      progress: Math.random() * 0.3 + 0.1, // Random initial progress
+      distance: haversineDistance(src.originLat, src.originLng, currentLocation.lat, currentLocation.lng)
+    }));
+
+    setAttacks(initialAttacks);
+  }, [currentLocation.lat, currentLocation.lng]);
+
+  // Animate attack progress
   useEffect(() => {
     if (!active) return;
 
     const interval = setInterval(() => {
-      setTargets(prev =>
-        prev.map(t => {
-          const newLat = t.lat + (Math.random() - 0.5) * 0.8;
-          const newLng = t.lng + (Math.random() - 0.5) * 0.8;
-          const newAlt = Math.max(1000, t.altitude + (Math.random() - 0.5) * 800);
-
-          return {
-            ...t,
-            trajectory: [
-              { lat: t.lat, lng: t.lng, altitude: t.altitude },
-              ...(t.trajectory?.slice(0, 2) || [])
-            ],
-            predictedPath: [
-              { lat: newLat + 1, lng: newLng + 1, altitude: newAlt + 500 },
-              { lat: newLat + 2, lng: newLng + 2, altitude: newAlt + 1000 },
-            ],
-            lat: newLat,
-            lng: newLng,
-            altitude: newAlt,
-          };
-        })
-      );
-    }, 2500);
+      setAttacks(prev => prev.map(attack => {
+        let newProgress = attack.progress + 0.003 + (attack.velocity / 100000);
+        
+        // Reset when reaching target
+        if (newProgress >= 1) {
+          newProgress = 0.05;
+        }
+        
+        // Update distance based on progress
+        const totalDistance = haversineDistance(
+          attack.originLat, attack.originLng,
+          currentLocation.lat, currentLocation.lng
+        );
+        const remainingDistance = totalDistance * (1 - newProgress);
+        
+        return {
+          ...attack,
+          progress: newProgress,
+          distance: remainingDistance,
+          eta: Math.round(remainingDistance / (attack.velocity / 3600))
+        };
+      }));
+    }, 50);
 
     return () => clearInterval(interval);
-  }, [active]);
+  }, [active, currentLocation]);
+
+  const threatCounts = useMemo(() => ({
+    critical: attacks.filter(a => a.threatLevel === 'critical').length,
+    high: attacks.filter(a => a.threatLevel === 'high').length,
+    medium: attacks.filter(a => a.threatLevel === 'medium').length,
+    low: attacks.filter(a => a.threatLevel === 'low').length
+  }), [attacks]);
 
   return (
-    <div className={`relative w-full h-full min-h-[280px] ${className}`}>
-      <Canvas camera={{ position: [0, 0, 5.5], fov: 45 }}>
-        <ambientLight intensity={0.3} />
-        <pointLight position={[10, 10, 10]} intensity={1.2} />
-        <pointLight position={[-10, -10, -10]} intensity={0.4} color="#22c55e" />
+    <div className={`relative w-full h-full min-h-[350px] ${className}`}>
+      <Canvas 
+        camera={{ position: [0, 2, 5], fov: 45 }}
+        gl={{ antialias: true }}
+      >
+        <ambientLight intensity={0.4} />
+        <directionalLight position={[5, 3, 5]} intensity={1.2} />
+        <pointLight position={[-10, -10, -10]} intensity={0.3} color="#ff4444" />
+        <pointLight position={[10, 0, 0]} intensity={0.5} color="#ffffff" />
 
-        <Stars radius={100} depth={50} count={2000} factor={4} saturation={0} fade speed={0.5} />
+        <Stars 
+          radius={100} 
+          depth={50} 
+          count={3000} 
+          factor={4} 
+          saturation={0} 
+          fade 
+          speed={0.5} 
+        />
 
-        <Earth userLocation={userLocation} />
+        <React.Suspense fallback={<GlobeLoader />}>
+          <Earth userLocation={currentLocation} />
+        </React.Suspense>
 
-        {targets.map(target => (
-          <React.Fragment key={target.id}>
-            <TrajectoryLine target={target} />
-            <TargetMarker target={target} />
+        {/* Impact zone at user location */}
+        <ImpactZone 
+          lat={currentLocation.lat} 
+          lng={currentLocation.lng} 
+          threatCount={attacks.length} 
+        />
+
+        {/* Render all attack arcs and origin markers */}
+        {attacks.map(attack => (
+          <React.Fragment key={attack.id}>
+            <AttackOriginMarker attack={attack} />
+            <AttackArc 
+              attack={attack} 
+              targetLat={currentLocation.lat} 
+              targetLng={currentLocation.lng} 
+            />
           </React.Fragment>
         ))}
 
@@ -346,37 +608,143 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           enablePan={false}
           minDistance={3}
           maxDistance={12}
-          autoRotate={false}
+          autoRotate={!selectedAttack}
+          autoRotateSpeed={0.3}
         />
       </Canvas>
 
-      {/* HUD */}
-      <div className="absolute top-1.5 left-1.5 bg-card/80 backdrop-blur rounded border border-border p-1.5">
-        <div className="text-[9px] font-display text-primary mb-1">GLOBAL TRACKING</div>
-        <div className="space-y-0.5 text-[8px] font-mono">
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-red-500 rounded-full" />
-            <span className="text-muted-foreground">HOSTILE:</span>
-            <span className="text-red-500">{targets.filter(t => t.type === 'hostile').length}</span>
+      {/* Threat Level HUD */}
+      <div className="absolute top-2 left-2 bg-black/85 backdrop-blur rounded-lg border border-red-500/30 p-2 shadow-lg shadow-red-500/10">
+        <div className="text-[10px] font-display text-red-400 mb-2 flex items-center gap-1.5">
+          <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+          INCOMING THREATS
+        </div>
+        <div className="space-y-1 text-[9px] font-mono">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse" />
+            <span className="text-muted-foreground w-16">CRITICAL:</span>
+            <span className="text-red-500 font-bold">{threatCounts.critical}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
-            <span className="text-muted-foreground">FRIENDLY:</span>
-            <span className="text-emerald-500">{targets.filter(t => t.type === 'friendly').length}</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-red-400 rounded-full" />
+            <span className="text-muted-foreground w-16">HIGH:</span>
+            <span className="text-red-400">{threatCounts.high}</span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 bg-yellow-500 rounded-full" />
-            <span className="text-muted-foreground">UNKNOWN:</span>
-            <span className="text-yellow-500">{targets.filter(t => t.type === 'unknown').length}</span>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-orange-500 rounded-full" />
+            <span className="text-muted-foreground w-16">MEDIUM:</span>
+            <span className="text-orange-500">{threatCounts.medium}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 bg-yellow-500 rounded-full" />
+            <span className="text-muted-foreground w-16">LOW:</span>
+            <span className="text-yellow-500">{threatCounts.low}</span>
           </div>
         </div>
       </div>
 
-      {/* Status */}
-      <div className="absolute bottom-1.5 right-1.5 flex items-center gap-1.5 text-[8px] font-mono bg-card/60 px-1.5 py-0.5 rounded">
-        <span className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
-        <span className="text-muted-foreground">{active ? 'ACTIVE' : 'OFFLINE'}</span>
+      {/* Active Threats Panel */}
+      <div className="absolute top-2 right-2 bg-black/85 backdrop-blur rounded-lg border border-border p-2 max-h-[200px] overflow-y-auto w-[180px]">
+        <div className="text-[10px] font-display text-primary mb-2">ACTIVE THREATS</div>
+        <div className="space-y-1.5">
+          {attacks.slice(0, 5).map(attack => (
+            <div 
+              key={attack.id}
+              className="text-[8px] font-mono p-1.5 rounded bg-card/50 border border-border/50 cursor-pointer hover:bg-card/80 transition-colors"
+              onClick={() => setSelectedAttack(attack)}
+            >
+              <div className="flex items-center justify-between">
+                <span 
+                  className="font-bold"
+                  style={{ color: attack.threatLevel === 'critical' ? '#ff0000' : attack.threatLevel === 'high' ? '#ff4444' : '#ff8800' }}
+                >
+                  {attack.originCountry}
+                </span>
+                <span className="text-muted-foreground">{attack.type.toUpperCase()}</span>
+              </div>
+              <div className="flex justify-between mt-0.5 text-muted-foreground">
+                <span>DST: {Math.round(attack.distance)}km</span>
+                <span>ETA: {Math.round(attack.eta)}s</span>
+              </div>
+              <div className="w-full bg-muted/30 h-1 rounded mt-1">
+                <div 
+                  className="h-full rounded transition-all"
+                  style={{ 
+                    width: `${attack.progress * 100}%`,
+                    backgroundColor: attack.threatLevel === 'critical' ? '#ff0000' : attack.threatLevel === 'high' ? '#ff4444' : '#ff8800'
+                  }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
+
+      {/* User Location Info */}
+      <div className="absolute bottom-2 left-2 bg-black/85 backdrop-blur rounded-lg border border-emerald-500/30 p-2">
+        <div className="text-[10px] font-display text-emerald-400 mb-1">DEFENSE POSITION</div>
+        <div className="text-[9px] font-mono text-muted-foreground">
+          <div>LAT: {currentLocation.lat.toFixed(4)}°</div>
+          <div>LNG: {currentLocation.lng.toFixed(4)}°</div>
+          <div className="text-emerald-400 mt-1">ETHIOPIA • ADDIS ABABA</div>
+        </div>
+      </div>
+
+      {/* Status */}
+      <div className="absolute bottom-2 right-2 flex items-center gap-2 text-[9px] font-mono bg-black/70 px-2 py-1 rounded">
+        <span className={`w-2 h-2 rounded-full ${active ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
+        <span className="text-muted-foreground">{active ? 'TRACKING ACTIVE' : 'OFFLINE'}</span>
+      </div>
+
+      {/* Selected Attack Detail */}
+      {selectedAttack && (
+        <div className="absolute bottom-14 right-2 bg-black/90 backdrop-blur rounded-lg border border-red-500/50 p-3 w-[200px]">
+          <div className="flex justify-between items-start mb-2">
+            <div className="text-[11px] font-display text-red-400">THREAT DETAIL</div>
+            <button 
+              onClick={() => setSelectedAttack(null)}
+              className="text-muted-foreground hover:text-foreground text-xs"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-1 text-[9px] font-mono">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">ORIGIN:</span>
+              <span className="text-red-400">{selectedAttack.originName}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">TYPE:</span>
+              <span>{selectedAttack.type.toUpperCase()}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">VELOCITY:</span>
+              <span>{selectedAttack.velocity} km/h</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">ALTITUDE:</span>
+              <span>{selectedAttack.altitude.toLocaleString()}m</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">DISTANCE:</span>
+              <span>{Math.round(selectedAttack.distance).toLocaleString()} km</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">ETA:</span>
+              <span className="text-red-400">{Math.round(selectedAttack.eta)}s</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">THREAT:</span>
+              <span 
+                className="font-bold uppercase"
+                style={{ color: selectedAttack.threatLevel === 'critical' ? '#ff0000' : '#ff4444' }}
+              >
+                {selectedAttack.threatLevel}
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
