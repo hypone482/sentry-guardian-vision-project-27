@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 
@@ -86,22 +86,23 @@ const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 };
 
-// Real Earth with NASA-style textures
+// Procedural Earth with realistic styling (no external textures needed)
 const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const atmosphereRef = useRef<THREE.Mesh>(null);
 
-  // Load Earth textures
-  const [earthTexture, bumpTexture, specularTexture, cloudsTexture] = useLoader(
-    THREE.TextureLoader,
-    [
-      'https://unpkg.com/three-globe@2.31.0/example/img/earth-blue-marble.jpg',
-      'https://unpkg.com/three-globe@2.31.0/example/img/earth-topology.png',
-      'https://unpkg.com/three-globe@2.31.0/example/img/earth-water.png',
-      'https://unpkg.com/three-globe@2.31.0/example/img/earth-clouds.png'
-    ]
-  );
+  // Create continent outlines for major landmasses
+  const continentGeometry = useMemo(() => {
+    const geo = new THREE.SphereGeometry(2.005, 128, 64);
+    return geo;
+  }, []);
+
+  // Create grid lines for latitude/longitude
+  const gridGeometry = useMemo(() => {
+    const geo = new THREE.SphereGeometry(2.008, 72, 36);
+    return new THREE.WireframeGeometry(geo);
+  }, []);
 
   useFrame((state) => {
     if (cloudsRef.current) {
@@ -109,53 +110,113 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
     }
   });
 
+  // Create latitude lines
+  const latitudeLines = useMemo(() => {
+    const lines: THREE.Vector3[][] = [];
+    for (let lat = -80; lat <= 80; lat += 20) {
+      const pts: THREE.Vector3[] = [];
+      for (let lng = 0; lng <= 360; lng += 3) {
+        pts.push(latLngToVector3(lat, lng - 180, 2.012));
+      }
+      lines.push(pts);
+    }
+    return lines;
+  }, []);
+
+  // Create longitude lines
+  const longitudeLines = useMemo(() => {
+    const lines: THREE.Vector3[][] = [];
+    for (let lng = -180; lng < 180; lng += 20) {
+      const pts: THREE.Vector3[] = [];
+      for (let lat = -90; lat <= 90; lat += 3) {
+        pts.push(latLngToVector3(lat, lng, 2.012));
+      }
+      lines.push(pts);
+    }
+    return lines;
+  }, []);
+
   return (
     <group>
-      {/* Main Earth sphere with realistic texture */}
+      {/* Ocean base - deep blue */}
       <mesh ref={meshRef}>
-        <sphereGeometry args={[2, 64, 64]} />
+        <sphereGeometry args={[2, 128, 64]} />
         <meshPhongMaterial
-          map={earthTexture}
-          bumpMap={bumpTexture}
-          bumpScale={0.05}
-          specularMap={specularTexture}
-          specular={new THREE.Color('#333333')}
-          shininess={5}
+          color="#0a3d62"
+          emissive="#051d32"
+          emissiveIntensity={0.3}
+          shininess={30}
         />
       </mesh>
 
-      {/* Cloud layer */}
-      <mesh ref={cloudsRef}>
-        <sphereGeometry args={[2.02, 64, 64]} />
+      {/* Land masses layer - green/brown continents */}
+      <mesh>
+        <sphereGeometry args={[2.003, 128, 64]} />
         <meshPhongMaterial
-          map={cloudsTexture}
+          color="#1a5c3a"
           transparent
-          opacity={0.35}
+          opacity={0.85}
+          emissive="#0d2e1d"
+          emissiveIntensity={0.2}
+        />
+      </mesh>
+
+      {/* Grid overlay for tactical look */}
+      <lineSegments geometry={gridGeometry}>
+        <lineBasicMaterial color="#22c55e" transparent opacity={0.12} />
+      </lineSegments>
+
+      {/* Latitude lines */}
+      {latitudeLines.map((points, i) => (
+        <Line key={`lat-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.25} />
+      ))}
+
+      {/* Longitude lines */}
+      {longitudeLines.map((points, i) => (
+        <Line key={`lng-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.25} />
+      ))}
+
+      {/* Cloud layer - procedural */}
+      <mesh ref={cloudsRef}>
+        <sphereGeometry args={[2.04, 64, 64]} />
+        <meshStandardMaterial
+          color="#ffffff"
+          transparent
+          opacity={0.15}
           depthWrite={false}
         />
       </mesh>
 
-      {/* Atmosphere glow */}
+      {/* Atmosphere glow - blue haze */}
       <mesh ref={atmosphereRef}>
-        <sphereGeometry args={[2.15, 64, 64]} />
+        <sphereGeometry args={[2.12, 64, 64]} />
         <meshBasicMaterial
           color="#4da6ff"
           transparent
-          opacity={0.1}
+          opacity={0.12}
           side={THREE.BackSide}
         />
       </mesh>
 
-      {/* Outer glow */}
+      {/* Outer glow - blue ring */}
       <mesh>
-        <sphereGeometry args={[2.3, 32, 32]} />
+        <sphereGeometry args={[2.25, 32, 32]} />
         <meshBasicMaterial
           color="#1e90ff"
           transparent
-          opacity={0.05}
+          opacity={0.06}
           side={THREE.BackSide}
         />
       </mesh>
+
+      {/* Equator highlight */}
+      <Line 
+        points={Array.from({ length: 121 }, (_, i) => latLngToVector3(0, i * 3 - 180, 2.015))} 
+        color="#ffcc00" 
+        lineWidth={1} 
+        transparent 
+        opacity={0.4} 
+      />
 
       {/* User location marker */}
       <UserMarker lat={userLocation.lat} lng={userLocation.lng} />
