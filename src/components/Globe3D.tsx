@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect, useCallback } from 'react';
-import { Canvas, useFrame, useLoader } from '@react-three/fiber';
+import { Canvas, useFrame, useLoader, ThreeEvent } from '@react-three/fiber';
 import { OrbitControls, Stars, Html, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { TextureLoader } from 'three';
@@ -7,6 +7,8 @@ import earthTexture from '@/assets/earth-texture.jpg';
 import earthNormal from '@/assets/earth-normal.jpg';
 import earthSpecular from '@/assets/earth-specular.jpg';
 import earthClouds from '@/assets/earth-clouds.png';
+import { useThreatState, SharedThreat } from '@/hooks/useThreatState';
+import { Shield, Crosshair, Zap, Target } from 'lucide-react';
 
 interface Attack {
   id: string;
@@ -16,23 +18,12 @@ interface Attack {
   originCountry: string;
   type: 'missile' | 'drone' | 'aircraft' | 'cyber' | 'artillery';
   threatLevel: 'critical' | 'high' | 'medium' | 'low';
-  velocity: number; // km/h
-  altitude: number; // meters
-  eta: number; // seconds
-  progress: number; // 0-1 animation progress
-  distance: number; // km from target
-}
-
-interface Target {
-  id: string;
-  lat: number;
-  lng: number;
+  velocity: number;
   altitude: number;
-  type: 'hostile' | 'friendly' | 'unknown';
-  label: string;
-  trajectory?: { lat: number; lng: number; altitude: number }[];
-  predictedPath?: { lat: number; lng: number; altitude: number }[];
-  velocity?: number;
+  eta: number;
+  progress: number;
+  distance: number;
+  neutralized?: boolean;
 }
 
 interface Globe3DProps {
@@ -50,7 +41,6 @@ const latLngToVector3 = (lat: number, lng: number, radius: number): THREE.Vector
   return new THREE.Vector3(x, y, z);
 };
 
-// Calculate great circle arc points between two lat/lng coordinates
 const getArcPoints = (
   startLat: number, startLng: number,
   endLat: number, endLng: number,
@@ -64,24 +54,18 @@ const getArcPoints = (
   
   for (let i = 0; i <= activeSegments; i++) {
     const t = i / segments;
-    
-    // Spherical interpolation
     const lat = startLat + (endLat - startLat) * t;
     const lng = startLng + (endLng - startLng) * t;
-    
-    // Add arc height (parabolic curve for missile trajectory)
     const heightMultiplier = Math.sin(t * Math.PI) * arcHeight;
     const currentRadius = radius + heightMultiplier;
-    
     points.push(latLngToVector3(lat, lng, currentRadius));
   }
   
   return points;
 };
 
-// Calculate distance between two lat/lng points in km
 const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: number): number => {
-  const R = 6371; // Earth radius in km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLng = (lng2 - lng1) * Math.PI / 180;
   const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -91,13 +75,27 @@ const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
   return R * c;
 };
 
-// Realistic Earth with NASA textures
+// Calculate angle from target location (for radar sync)
+const calculateAngleFromTarget = (
+  originLat: number, 
+  originLng: number, 
+  targetLat: number, 
+  targetLng: number
+): number => {
+  const dLng = (originLng - targetLng) * Math.PI / 180;
+  const lat1 = targetLat * Math.PI / 180;
+  const lat2 = originLat * Math.PI / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  let angle = Math.atan2(y, x) * 180 / Math.PI;
+  return (angle + 360) % 360;
+};
+
 const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const atmosphereRef = useRef<THREE.Mesh>(null);
 
-  // Load NASA textures
   const [colorMap, normalMap, specularMap, cloudsMap] = useLoader(TextureLoader, [
     earthTexture,
     earthNormal,
@@ -105,19 +103,17 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
     earthClouds
   ]);
 
-  // Create grid lines for latitude/longitude overlay
   const gridGeometry = useMemo(() => {
     const geo = new THREE.SphereGeometry(2.015, 72, 36);
     return new THREE.WireframeGeometry(geo);
   }, []);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (cloudsRef.current) {
       cloudsRef.current.rotation.y += 0.0003;
     }
   });
 
-  // Create latitude lines
   const latitudeLines = useMemo(() => {
     const lines: THREE.Vector3[][] = [];
     for (let lat = -80; lat <= 80; lat += 20) {
@@ -130,7 +126,6 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
     return lines;
   }, []);
 
-  // Create longitude lines
   const longitudeLines = useMemo(() => {
     const lines: THREE.Vector3[][] = [];
     for (let lng = -180; lng < 180; lng += 20) {
@@ -145,7 +140,6 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
 
   return (
     <group>
-      {/* Main Earth with NASA texture */}
       <mesh ref={meshRef}>
         <sphereGeometry args={[2, 128, 64]} />
         <meshPhongMaterial
@@ -157,22 +151,18 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
         />
       </mesh>
 
-      {/* Tactical grid overlay */}
       <lineSegments geometry={gridGeometry}>
         <lineBasicMaterial color="#22c55e" transparent opacity={0.08} />
       </lineSegments>
 
-      {/* Latitude lines */}
       {latitudeLines.map((points, i) => (
         <Line key={`lat-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.15} />
       ))}
 
-      {/* Longitude lines */}
       {longitudeLines.map((points, i) => (
         <Line key={`lng-${i}`} points={points} color="#22c55e" lineWidth={0.5} transparent opacity={0.15} />
       ))}
 
-      {/* Cloud layer with real texture */}
       <mesh ref={cloudsRef}>
         <sphereGeometry args={[2.03, 64, 64]} />
         <meshStandardMaterial
@@ -184,7 +174,6 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
         />
       </mesh>
 
-      {/* Atmosphere glow - blue haze */}
       <mesh ref={atmosphereRef}>
         <sphereGeometry args={[2.08, 64, 64]} />
         <meshBasicMaterial
@@ -195,7 +184,6 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
         />
       </mesh>
 
-      {/* Outer glow - blue ring */}
       <mesh>
         <sphereGeometry args={[2.2, 32, 32]} />
         <meshBasicMaterial
@@ -206,7 +194,6 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
         />
       </mesh>
 
-      {/* Equator highlight */}
       <Line 
         points={Array.from({ length: 121 }, (_, i) => latLngToVector3(0, i * 3 - 180, 2.02))} 
         color="#ffcc00" 
@@ -215,11 +202,11 @@ const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } })
         opacity={0.3} 
       />
 
-      {/* User location marker */}
       <UserMarker lat={userLocation.lat} lng={userLocation.lng} />
     </group>
   );
 };
+
 const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
   const position = latLngToVector3(lat, lng, 2.06);
   const pulseRef = useRef<THREE.Mesh>(null);
@@ -246,25 +233,21 @@ const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
 
   return (
     <group position={position}>
-      {/* Defense shield effect */}
       <mesh ref={outerPulseRef}>
         <ringGeometry args={[0.12, 0.15, 32]} />
         <meshBasicMaterial color="#00ff88" transparent opacity={0.3} side={THREE.DoubleSide} />
       </mesh>
       
-      {/* Main marker */}
       <mesh>
         <sphereGeometry args={[0.06, 16, 16]} />
         <meshStandardMaterial color="#00ff88" emissive="#00ff88" emissiveIntensity={1} />
       </mesh>
       
-      {/* Pulse ring */}
       <mesh ref={pulseRef}>
         <ringGeometry args={[0.07, 0.09, 32]} />
         <meshBasicMaterial color="#00ff88" transparent opacity={0.7} side={THREE.DoubleSide} />
       </mesh>
       
-      {/* Vertical beam */}
       <mesh ref={beamRef} position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.01, 0.01, 0.3, 8]} />
         <meshBasicMaterial color="#00ff88" transparent opacity={0.4} />
@@ -280,7 +263,6 @@ const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
   );
 };
 
-// Attack origin marker
 const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
   const position = latLngToVector3(attack.originLat, attack.originLng, 2.05);
   const ref = useRef<THREE.Mesh>(null);
@@ -300,15 +282,17 @@ const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
     artillery: '💥'
   };
   
-  const color = threatColors[attack.threatLevel];
+  const color = attack.neutralized ? '#666666' : threatColors[attack.threatLevel];
 
   useFrame((state) => {
-    if (ref.current) {
+    if (ref.current && !attack.neutralized) {
       ref.current.rotation.y += 0.03;
       const scale = 0.8 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
       ref.current.scale.setScalar(scale);
     }
   });
+
+  if (attack.neutralized) return null;
 
   return (
     <group position={position}>
@@ -341,10 +325,23 @@ const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
   );
 };
 
-// Attack trajectory arc
-const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat: number; targetLng: number }) => {
+// Clickable attack arc with interception capability
+const AttackArc = ({ 
+  attack, 
+  targetLat, 
+  targetLng,
+  onIntercept,
+  interceptMode
+}: { 
+  attack: Attack; 
+  targetLat: number; 
+  targetLng: number;
+  onIntercept: (id: string) => void;
+  interceptMode: boolean;
+}) => {
   const lineRef = useRef<any>(null);
   const headRef = useRef<THREE.Mesh>(null);
+  const [hovered, setHovered] = useState(false);
   
   const threatColors = {
     critical: '#ff0000',
@@ -353,45 +350,48 @@ const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat
     low: '#ffcc00'
   };
   
-  const color = threatColors[attack.threatLevel];
+  const color = attack.neutralized ? '#444444' : threatColors[attack.threatLevel];
   
-  // Get arc points for the trajectory
   const arcPoints = useMemo(() => {
     return getArcPoints(
       attack.originLat, attack.originLng,
       targetLat, targetLng,
       2,
       60,
-      attack.progress,
+      attack.neutralized ? 0 : attack.progress,
       0.4 + (attack.altitude / 50000) * 0.3
     );
   }, [attack, targetLat, targetLng]);
 
-  // Missile head position
   const headPosition = arcPoints.length > 0 ? arcPoints[arcPoints.length - 1] : null;
 
   useFrame((state) => {
-    if (headRef.current && headPosition) {
+    if (headRef.current && headPosition && !attack.neutralized) {
       headRef.current.rotation.y += 0.1;
       const scale = 0.8 + Math.sin(state.clock.elapsedTime * 10) * 0.3;
       headRef.current.scale.setScalar(scale);
     }
   });
 
-  if (arcPoints.length < 2) return null;
+  if (arcPoints.length < 2 || attack.neutralized) return null;
+
+  const handleClick = (e: ThreeEvent<MouseEvent>) => {
+    if (interceptMode) {
+      e.stopPropagation();
+      onIntercept(attack.id);
+    }
+  };
 
   return (
     <group>
-      {/* Main trajectory arc */}
       <Line 
         points={arcPoints} 
-        color={color} 
-        lineWidth={2} 
+        color={hovered && interceptMode ? '#00ff00' : color} 
+        lineWidth={hovered ? 4 : 2} 
         transparent 
         opacity={0.8}
       />
       
-      {/* Glowing trail effect */}
       <Line 
         points={arcPoints} 
         color={color} 
@@ -400,22 +400,66 @@ const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat
         opacity={0.3}
       />
       
-      {/* Missile/threat head */}
       {headPosition && (
-        <mesh ref={headRef} position={headPosition}>
-          <coneGeometry args={[0.03, 0.06, 8]} />
+        <mesh 
+          ref={headRef} 
+          position={headPosition}
+          onClick={handleClick}
+          onPointerEnter={() => interceptMode && setHovered(true)}
+          onPointerLeave={() => setHovered(false)}
+        >
+          <coneGeometry args={[0.04, 0.08, 8]} />
           <meshStandardMaterial 
-            color={color} 
-            emissive={color} 
-            emissiveIntensity={1.5} 
+            color={hovered && interceptMode ? '#00ff00' : color} 
+            emissive={hovered && interceptMode ? '#00ff00' : color} 
+            emissiveIntensity={hovered ? 2 : 1.5} 
           />
         </mesh>
+      )}
+
+      {hovered && interceptMode && headPosition && (
+        <Html position={headPosition} distanceFactor={8}>
+          <div className="bg-emerald-900/95 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 whitespace-nowrap border border-emerald-500 shadow-lg cursor-pointer animate-pulse">
+            <div className="flex items-center gap-1">
+              <Crosshair className="w-3 h-3" />
+              <span>CLICK TO INTERCEPT</span>
+            </div>
+          </div>
+        </Html>
       )}
     </group>
   );
 };
 
-// Impact zone indicator
+// Interception explosion effect
+const InterceptionEffect = ({ position, onComplete }: { position: THREE.Vector3; onComplete: () => void }) => {
+  const ref = useRef<THREE.Mesh>(null);
+  const [scale, setScale] = useState(0.1);
+
+  useFrame(() => {
+    if (ref.current) {
+      setScale(prev => {
+        const next = prev + 0.05;
+        if (next > 1.5) {
+          onComplete();
+          return prev;
+        }
+        ref.current!.scale.setScalar(next);
+        const mat = ref.current!.material as THREE.MeshBasicMaterial;
+        mat.opacity = 1 - (next / 1.5);
+        return next;
+      });
+    }
+  });
+
+  return (
+    <mesh ref={ref} position={position}>
+      <sphereGeometry args={[0.15, 16, 16]} />
+      <meshBasicMaterial color="#00ff00" transparent opacity={1} />
+    </mesh>
+  );
+};
+
 const ImpactZone = ({ lat, lng, threatCount }: { lat: number; lng: number; threatCount: number }) => {
   const position = latLngToVector3(lat, lng, 2.01);
   const ringRef = useRef<THREE.Mesh>(null);
@@ -451,7 +495,6 @@ const ImpactZone = ({ lat, lng, threatCount }: { lat: number; lng: number; threa
   );
 };
 
-// Loading component for texture loading
 const GlobeLoader = () => (
   <mesh>
     <sphereGeometry args={[2, 32, 32]} />
@@ -460,177 +503,86 @@ const GlobeLoader = () => (
 );
 
 const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, className }) => {
-  // Default to Ethiopia if no GPS location
-  const defaultLocation = { lat: 9.0192, lng: 38.7525 }; // Addis Ababa, Ethiopia
+  const defaultLocation = { lat: 9.0192, lng: 38.7525 };
   const currentLocation = userLocation || defaultLocation;
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
+  const [interceptMode, setInterceptMode] = useState(false);
+  const [interceptionEffects, setInterceptionEffects] = useState<{ id: string; position: THREE.Vector3 }[]>([]);
+  const [interceptedCount, setInterceptedCount] = useState(0);
 
-  // Initialize attacks from various global locations
+  // Shared threat state for radar sync
+  const { setThreats, neutralizeThreat } = useThreatState();
+
+  // Initialize attacks
   useEffect(() => {
-    const attackSources: Omit<Attack, 'progress' | 'distance'>[] = [
-      {
-        id: 'atk-1',
-        originLat: 55.7558,
-        originLng: 37.6173,
-        originName: 'Moscow',
-        originCountry: 'RUSSIA',
-        type: 'missile',
-        threatLevel: 'critical',
-        velocity: 5500,
-        altitude: 35000,
-        eta: 1200
-      },
-      {
-        id: 'atk-2',
-        originLat: 39.9042,
-        originLng: 116.4074,
-        originName: 'Beijing',
-        originCountry: 'CHINA',
-        type: 'drone',
-        threatLevel: 'high',
-        velocity: 450,
-        altitude: 8000,
-        eta: 4800
-      },
-      {
-        id: 'atk-3',
-        originLat: 35.6762,
-        originLng: 51.4241,
-        originName: 'Tehran',
-        originCountry: 'IRAN',
-        type: 'missile',
-        threatLevel: 'critical',
-        velocity: 3200,
-        altitude: 25000,
-        eta: 900
-      },
-      {
-        id: 'atk-4',
-        originLat: 39.0392,
-        originLng: 125.7625,
-        originName: 'Pyongyang',
-        originCountry: 'N.KOREA',
-        type: 'missile',
-        threatLevel: 'high',
-        velocity: 4800,
-        altitude: 40000,
-        eta: 2100
-      },
-      {
-        id: 'atk-5',
-        originLat: 24.7136,
-        originLng: 46.6753,
-        originName: 'Riyadh',
-        originCountry: 'SAUDI',
-        type: 'aircraft',
-        threatLevel: 'medium',
-        velocity: 850,
-        altitude: 12000,
-        eta: 1800
-      },
-      {
-        id: 'atk-6',
-        originLat: 33.8688,
-        originLng: 35.5018,
-        originName: 'Beirut',
-        originCountry: 'LEBANON',
-        type: 'drone',
-        threatLevel: 'medium',
-        velocity: 280,
-        altitude: 3000,
-        eta: 2400
-      },
-      {
-        id: 'atk-7',
-        originLat: 15.3694,
-        originLng: 44.1910,
-        originName: 'Sanaa',
-        originCountry: 'YEMEN',
-        type: 'artillery',
-        threatLevel: 'high',
-        velocity: 1200,
-        altitude: 15000,
-        eta: 600
-      },
-      {
-        id: 'atk-8',
-        originLat: 2.0469,
-        originLng: 45.3182,
-        originName: 'Mogadishu',
-        originCountry: 'SOMALIA',
-        type: 'drone',
-        threatLevel: 'low',
-        velocity: 180,
-        altitude: 2000,
-        eta: 1500
-      }
+    const attackSources: Omit<Attack, 'progress' | 'distance' | 'neutralized'>[] = [
+      { id: 'atk-1', originLat: 55.7558, originLng: 37.6173, originName: 'Moscow', originCountry: 'RUSSIA', type: 'missile', threatLevel: 'critical', velocity: 5500, altitude: 35000, eta: 1200 },
+      { id: 'atk-2', originLat: 39.9042, originLng: 116.4074, originName: 'Beijing', originCountry: 'CHINA', type: 'drone', threatLevel: 'high', velocity: 450, altitude: 8000, eta: 4800 },
+      { id: 'atk-3', originLat: 35.6762, originLng: 51.4241, originName: 'Tehran', originCountry: 'IRAN', type: 'missile', threatLevel: 'critical', velocity: 3200, altitude: 25000, eta: 900 },
+      { id: 'atk-4', originLat: 39.0392, originLng: 125.7625, originName: 'Pyongyang', originCountry: 'N.KOREA', type: 'missile', threatLevel: 'high', velocity: 4800, altitude: 40000, eta: 2100 },
+      { id: 'atk-5', originLat: 24.7136, originLng: 46.6753, originName: 'Riyadh', originCountry: 'SAUDI', type: 'aircraft', threatLevel: 'medium', velocity: 850, altitude: 12000, eta: 1800 },
+      { id: 'atk-6', originLat: 33.8688, originLng: 35.5018, originName: 'Beirut', originCountry: 'LEBANON', type: 'drone', threatLevel: 'medium', velocity: 280, altitude: 3000, eta: 2400 },
+      { id: 'atk-7', originLat: 15.3694, originLng: 44.1910, originName: 'Sanaa', originCountry: 'YEMEN', type: 'artillery', threatLevel: 'high', velocity: 1200, altitude: 15000, eta: 600 },
+      { id: 'atk-8', originLat: 2.0469, originLng: 45.3182, originName: 'Mogadishu', originCountry: 'SOMALIA', type: 'drone', threatLevel: 'low', velocity: 180, altitude: 2000, eta: 1500 }
     ];
 
     const initialAttacks: Attack[] = attackSources.map(src => ({
       ...src,
-      progress: Math.random() * 0.3 + 0.1, // Random initial progress
-      distance: haversineDistance(src.originLat, src.originLng, currentLocation.lat, currentLocation.lng)
+      progress: Math.random() * 0.3 + 0.1,
+      distance: haversineDistance(src.originLat, src.originLng, currentLocation.lat, currentLocation.lng),
+      neutralized: false
     }));
 
     setAttacks(initialAttacks);
   }, [currentLocation.lat, currentLocation.lng]);
 
-  // Audio context for proximity alerts
+  // Sync attacks to shared state for radar
+  useEffect(() => {
+    const sharedThreats: SharedThreat[] = attacks.map(attack => ({
+      ...attack,
+      neutralized: attack.neutralized || false,
+      angle: calculateAngleFromTarget(attack.originLat, attack.originLng, currentLocation.lat, currentLocation.lng)
+    }));
+    setThreats(sharedThreats);
+  }, [attacks, currentLocation, setThreats]);
+
+  // Audio context
   const audioContextRef = useRef<AudioContext | null>(null);
   const lastAlertTimeRef = useRef<number>(0);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [proximityAlertActive, setProximityAlertActive] = useState(false);
 
-  // Initialize audio context
   useEffect(() => {
     audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
-    return () => {
-      audioContextRef.current?.close();
-    };
+    return () => { audioContextRef.current?.close(); };
   }, []);
 
-  // Play proximity alert sound
   const playProximityAlert = useCallback((threatLevel: 'critical' | 'high' | 'medium' | 'low') => {
     if (!audioEnabled || !audioContextRef.current) return;
-    
     const now = Date.now();
-    if (now - lastAlertTimeRef.current < 2000) return; // 2 second cooldown
+    if (now - lastAlertTimeRef.current < 2000) return;
     lastAlertTimeRef.current = now;
     
     const ctx = audioContextRef.current;
-    if (ctx.state === 'suspended') {
-      ctx.resume();
-    }
+    if (ctx.state === 'suspended') ctx.resume();
 
-    // Create oscillator for alert sound
     const oscillator = ctx.createOscillator();
     const gainNode = ctx.createGain();
-    
-    // Different frequencies for different threat levels
-    const frequencies = {
-      critical: 880, // High A - urgent
-      high: 660,     // High E
-      medium: 440,   // A4
-      low: 330       // E4
-    };
+    const frequencies = { critical: 880, high: 660, medium: 440, low: 330 };
     
     oscillator.frequency.setValueAtTime(frequencies[threatLevel], ctx.currentTime);
     oscillator.type = 'square';
     
-    // Pulse pattern for alert
     gainNode.gain.setValueAtTime(0, ctx.currentTime);
     gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.05);
     gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.15);
     gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.2);
     gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.3);
-    gainNode.gain.linearRampToValueAtTime(0.3, ctx.currentTime + 0.35);
-    gainNode.gain.linearRampToValueAtTime(0, ctx.currentTime + 0.5);
     
     oscillator.connect(gainNode);
     gainNode.connect(ctx.destination);
-    
     oscillator.start(ctx.currentTime);
     oscillator.stop(ctx.currentTime + 0.5);
     
@@ -638,38 +590,81 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
     setTimeout(() => setProximityAlertActive(false), 500);
   }, [audioEnabled]);
 
-  // Check for proximity threats
-  useEffect(() => {
-    const proximityThreshold = 1000; // 1000km proximity alert
-    const criticalThreshold = 500;   // 500km critical alert
+  // Play interception sound
+  const playInterceptSound = useCallback(() => {
+    if (!audioContextRef.current) return;
+    const ctx = audioContextRef.current;
+    if (ctx.state === 'suspended') ctx.resume();
+
+    const oscillator = ctx.createOscillator();
+    const gainNode = ctx.createGain();
     
-    attacks.forEach(attack => {
-      if (attack.distance < criticalThreshold && attack.threatLevel === 'critical') {
+    oscillator.frequency.setValueAtTime(1200, ctx.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(400, ctx.currentTime + 0.3);
+    oscillator.type = 'sawtooth';
+    
+    gainNode.gain.setValueAtTime(0.4, ctx.currentTime);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.3);
+    
+    oscillator.connect(gainNode);
+    gainNode.connect(ctx.destination);
+    oscillator.start(ctx.currentTime);
+    oscillator.stop(ctx.currentTime + 0.3);
+  }, []);
+
+  useEffect(() => {
+    attacks.filter(a => !a.neutralized).forEach(attack => {
+      if (attack.distance < 500 && attack.threatLevel === 'critical') {
         playProximityAlert('critical');
-      } else if (attack.distance < proximityThreshold && (attack.threatLevel === 'critical' || attack.threatLevel === 'high')) {
+      } else if (attack.distance < 1000 && (attack.threatLevel === 'critical' || attack.threatLevel === 'high')) {
         playProximityAlert(attack.threatLevel);
       }
     });
   }, [attacks, playProximityAlert]);
 
-  // Animate attack progress
+  // Handle interception
+  const handleIntercept = useCallback((attackId: string) => {
+    const attack = attacks.find(a => a.id === attackId);
+    if (!attack || attack.neutralized) return;
+
+    // Calculate position for effect
+    const arcPoints = getArcPoints(
+      attack.originLat, attack.originLng,
+      currentLocation.lat, currentLocation.lng,
+      2, 60, attack.progress, 0.4
+    );
+    const position = arcPoints[arcPoints.length - 1] || new THREE.Vector3();
+
+    // Add explosion effect
+    setInterceptionEffects(prev => [...prev, { id: attackId, position }]);
+
+    // Play sound
+    playInterceptSound();
+
+    // Neutralize attack
+    setAttacks(prev => prev.map(a => 
+      a.id === attackId ? { ...a, neutralized: true } : a
+    ));
+    neutralizeThreat(attackId);
+    setInterceptedCount(prev => prev + 1);
+  }, [attacks, currentLocation, playInterceptSound, neutralizeThreat]);
+
+  const removeInterceptionEffect = useCallback((id: string) => {
+    setInterceptionEffects(prev => prev.filter(e => e.id !== id));
+  }, []);
+
+  // Animate attacks
   useEffect(() => {
     if (!active) return;
 
     const interval = setInterval(() => {
       setAttacks(prev => prev.map(attack => {
+        if (attack.neutralized) return attack;
+        
         let newProgress = attack.progress + 0.003 + (attack.velocity / 100000);
+        if (newProgress >= 1) newProgress = 0.05;
         
-        // Reset when reaching target
-        if (newProgress >= 1) {
-          newProgress = 0.05;
-        }
-        
-        // Update distance based on progress
-        const totalDistance = haversineDistance(
-          attack.originLat, attack.originLng,
-          currentLocation.lat, currentLocation.lng
-        );
+        const totalDistance = haversineDistance(attack.originLat, attack.originLng, currentLocation.lat, currentLocation.lng);
         const remainingDistance = totalDistance * (1 - newProgress);
         
         return {
@@ -684,55 +679,52 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
     return () => clearInterval(interval);
   }, [active, currentLocation]);
 
-  const threatCounts = useMemo(() => ({
-    critical: attacks.filter(a => a.threatLevel === 'critical').length,
-    high: attacks.filter(a => a.threatLevel === 'high').length,
-    medium: attacks.filter(a => a.threatLevel === 'medium').length,
-    low: attacks.filter(a => a.threatLevel === 'low').length
-  }), [attacks]);
+  const threatCounts = useMemo(() => {
+    const active = attacks.filter(a => !a.neutralized);
+    return {
+      critical: active.filter(a => a.threatLevel === 'critical').length,
+      high: active.filter(a => a.threatLevel === 'high').length,
+      medium: active.filter(a => a.threatLevel === 'medium').length,
+      low: active.filter(a => a.threatLevel === 'low').length,
+      total: active.length
+    };
+  }, [attacks]);
 
   return (
     <div className={`relative w-full h-full min-h-[350px] ${className}`}>
-      <Canvas 
-        camera={{ position: [0, 2, 5], fov: 45 }}
-        gl={{ antialias: true }}
-      >
+      <Canvas camera={{ position: [0, 2, 5], fov: 45 }} gl={{ antialias: true }}>
         <ambientLight intensity={0.4} />
         <directionalLight position={[5, 3, 5]} intensity={1.2} />
         <pointLight position={[-10, -10, -10]} intensity={0.3} color="#ff4444" />
         <pointLight position={[10, 0, 0]} intensity={0.5} color="#ffffff" />
 
-        <Stars 
-          radius={100} 
-          depth={50} 
-          count={3000} 
-          factor={4} 
-          saturation={0} 
-          fade 
-          speed={0.5} 
-        />
+        <Stars radius={100} depth={50} count={3000} factor={4} saturation={0} fade speed={0.5} />
 
         <React.Suspense fallback={<GlobeLoader />}>
           <Earth userLocation={currentLocation} />
         </React.Suspense>
 
-        {/* Impact zone at user location */}
-        <ImpactZone 
-          lat={currentLocation.lat} 
-          lng={currentLocation.lng} 
-          threatCount={attacks.length} 
-        />
+        <ImpactZone lat={currentLocation.lat} lng={currentLocation.lng} threatCount={attacks.length} />
 
-        {/* Render all attack arcs and origin markers */}
         {attacks.map(attack => (
           <React.Fragment key={attack.id}>
             <AttackOriginMarker attack={attack} />
             <AttackArc 
               attack={attack} 
               targetLat={currentLocation.lat} 
-              targetLng={currentLocation.lng} 
+              targetLng={currentLocation.lng}
+              onIntercept={handleIntercept}
+              interceptMode={interceptMode}
             />
           </React.Fragment>
+        ))}
+
+        {interceptionEffects.map(effect => (
+          <InterceptionEffect 
+            key={effect.id} 
+            position={effect.position} 
+            onComplete={() => removeInterceptionEffect(effect.id)} 
+          />
         ))}
 
         <OrbitControls
@@ -740,19 +732,48 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           enablePan={false}
           minDistance={3}
           maxDistance={12}
-          autoRotate={!selectedAttack}
+          autoRotate={!selectedAttack && !interceptMode}
           autoRotateSpeed={0.3}
         />
       </Canvas>
+
+      {/* Defense Interception Control */}
+      <div className="absolute top-2 right-[200px] z-20">
+        <button
+          onClick={() => setInterceptMode(!interceptMode)}
+          className={`flex items-center gap-2 px-3 py-2 rounded-lg border font-mono text-[11px] transition-all ${
+            interceptMode 
+              ? 'bg-emerald-500/30 border-emerald-500 text-emerald-400 shadow-lg shadow-emerald-500/30 animate-pulse' 
+              : 'bg-black/80 border-border text-muted-foreground hover:border-emerald-500/50 hover:text-emerald-400'
+          }`}
+        >
+          <Shield className="w-4 h-4" />
+          <span>{interceptMode ? 'INTERCEPT MODE ACTIVE' : 'ENABLE INTERCEPT'}</span>
+          {interceptMode && <Zap className="w-3 h-3" />}
+        </button>
+      </div>
+
+      {/* Intercept Stats */}
+      <div className="absolute top-14 right-[200px] bg-black/80 backdrop-blur rounded-lg border border-emerald-500/30 px-3 py-2 z-20">
+        <div className="flex items-center gap-3 text-[10px] font-mono">
+          <div className="flex items-center gap-1">
+            <Target className="w-3 h-3 text-emerald-400" />
+            <span className="text-muted-foreground">NEUTRALIZED:</span>
+            <span className="text-emerald-400 font-bold">{interceptedCount}</span>
+          </div>
+          <div className="flex items-center gap-1">
+            <span className="text-muted-foreground">ACTIVE:</span>
+            <span className="text-red-400 font-bold">{threatCounts.total}</span>
+          </div>
+        </div>
+      </div>
 
       {/* Threat Level HUD */}
       <div className={`absolute top-2 left-2 bg-black/85 backdrop-blur rounded-lg border p-2 shadow-lg transition-all ${proximityAlertActive ? 'border-red-500 shadow-red-500/50 animate-pulse' : 'border-red-500/30 shadow-red-500/10'}`}>
         <div className="text-[10px] font-display text-red-400 mb-2 flex items-center gap-1.5">
           <span className={`w-2 h-2 bg-red-500 rounded-full ${proximityAlertActive ? 'animate-ping' : 'animate-pulse'}`} />
           INCOMING THREATS
-          {proximityAlertActive && (
-            <span className="ml-1 text-red-500 font-bold animate-pulse">⚠ PROXIMITY</span>
-          )}
+          {proximityAlertActive && <span className="ml-1 text-red-500 font-bold animate-pulse">⚠ PROXIMITY</span>}
         </div>
         <div className="space-y-1 text-[9px] font-mono">
           <div className="flex items-center gap-2">
@@ -776,7 +797,6 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
             <span className="text-yellow-500">{threatCounts.low}</span>
           </div>
         </div>
-        {/* Audio toggle */}
         <button 
           onClick={() => setAudioEnabled(!audioEnabled)}
           className={`mt-2 text-[8px] font-mono px-2 py-0.5 rounded border transition-colors ${audioEnabled ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-red-500/50 text-red-400 bg-red-500/10'}`}
@@ -789,11 +809,15 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
       <div className="absolute top-2 right-2 bg-black/85 backdrop-blur rounded-lg border border-border p-2 max-h-[200px] overflow-y-auto w-[180px]">
         <div className="text-[10px] font-display text-primary mb-2">ACTIVE THREATS</div>
         <div className="space-y-1.5">
-          {attacks.slice(0, 5).map(attack => (
+          {attacks.filter(a => !a.neutralized).slice(0, 5).map(attack => (
             <div 
               key={attack.id}
-              className="text-[8px] font-mono p-1.5 rounded bg-card/50 border border-border/50 cursor-pointer hover:bg-card/80 transition-colors"
-              onClick={() => setSelectedAttack(attack)}
+              className={`text-[8px] font-mono p-1.5 rounded border cursor-pointer transition-colors ${
+                interceptMode 
+                  ? 'bg-emerald-500/10 border-emerald-500/30 hover:bg-emerald-500/20' 
+                  : 'bg-card/50 border-border/50 hover:bg-card/80'
+              }`}
+              onClick={() => interceptMode ? handleIntercept(attack.id) : setSelectedAttack(attack)}
             >
               <div className="flex items-center justify-between">
                 <span 
@@ -808,15 +832,9 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
                 <span>DST: {Math.round(attack.distance)}km</span>
                 <span>ETA: {Math.round(attack.eta)}s</span>
               </div>
-              <div className="w-full bg-muted/30 h-1 rounded mt-1">
-                <div 
-                  className="h-full rounded transition-all"
-                  style={{ 
-                    width: `${attack.progress * 100}%`,
-                    backgroundColor: attack.threatLevel === 'critical' ? '#ff0000' : attack.threatLevel === 'high' ? '#ff4444' : '#ff8800'
-                  }}
-                />
-              </div>
+              {interceptMode && (
+                <div className="mt-1 text-emerald-400 text-center text-[7px] font-bold">CLICK TO INTERCEPT</div>
+              )}
             </div>
           ))}
         </div>
@@ -839,51 +857,19 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
       </div>
 
       {/* Selected Attack Detail */}
-      {selectedAttack && (
+      {selectedAttack && !interceptMode && (
         <div className="absolute bottom-14 right-2 bg-black/90 backdrop-blur rounded-lg border border-red-500/50 p-3 w-[200px]">
           <div className="flex justify-between items-start mb-2">
             <div className="text-[11px] font-display text-red-400">THREAT DETAIL</div>
-            <button 
-              onClick={() => setSelectedAttack(null)}
-              className="text-muted-foreground hover:text-foreground text-xs"
-            >
-              ✕
-            </button>
+            <button onClick={() => setSelectedAttack(null)} className="text-muted-foreground hover:text-foreground text-xs">✕</button>
           </div>
           <div className="space-y-1 text-[9px] font-mono">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">ORIGIN:</span>
-              <span className="text-red-400">{selectedAttack.originName}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">TYPE:</span>
-              <span>{selectedAttack.type.toUpperCase()}</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">VELOCITY:</span>
-              <span>{selectedAttack.velocity} km/h</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">ALTITUDE:</span>
-              <span>{selectedAttack.altitude.toLocaleString()}m</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">DISTANCE:</span>
-              <span>{Math.round(selectedAttack.distance).toLocaleString()} km</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">ETA:</span>
-              <span className="text-red-400">{Math.round(selectedAttack.eta)}s</span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">THREAT:</span>
-              <span 
-                className="font-bold uppercase"
-                style={{ color: selectedAttack.threatLevel === 'critical' ? '#ff0000' : '#ff4444' }}
-              >
-                {selectedAttack.threatLevel}
-              </span>
-            </div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ORIGIN:</span><span className="text-red-400">{selectedAttack.originName}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">TYPE:</span><span>{selectedAttack.type.toUpperCase()}</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">VELOCITY:</span><span>{selectedAttack.velocity} km/h</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ALTITUDE:</span><span>{selectedAttack.altitude.toLocaleString()}m</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">DISTANCE:</span><span>{Math.round(selectedAttack.distance).toLocaleString()} km</span></div>
+            <div className="flex justify-between"><span className="text-muted-foreground">ETA:</span><span className="text-red-400">{Math.round(selectedAttack.eta)}s</span></div>
           </div>
         </div>
       )}
