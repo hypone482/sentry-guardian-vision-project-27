@@ -3,8 +3,9 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { cn } from '@/lib/utils';
-import { Plane, Target, AlertTriangle, HelpCircle, Shield, Volume2, VolumeX, Filter } from 'lucide-react';
+import { Plane, Target, AlertTriangle, HelpCircle, Shield, Volume2, VolumeX, Filter, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useThreatState } from '@/hooks/useThreatState';
 
 interface RadarTarget {
   id: string;
@@ -23,6 +24,9 @@ interface RadarTarget {
   x?: number;
   y?: number;
   z?: number;
+  originCountry?: string;
+  threatLevel?: string;
+  neutralized?: boolean;
 }
 
 interface Radar3DDisplayProps {
@@ -33,9 +37,8 @@ interface Radar3DDisplayProps {
 
 const RANGE_CIRCLES = [100, 250, 500, 1000, 2000, 3000, 4000];
 const MAX_RANGE = 4000;
-const CLOSE_RANGE_ALERT = 500; // Alert for hostile targets within 500m
+const CLOSE_RANGE_ALERT = 500;
 
-// Audio context for alerts
 const createAlertSound = () => {
   try {
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -59,26 +62,21 @@ const createAlertSound = () => {
   }
 };
 
-// 3D Axis component
 const Axis = () => {
   return (
     <group>
-      {/* X Axis - Red */}
       <Line points={[[0, 0, 0], [6, 0, 0]]} color="#ef4444" lineWidth={2} />
       <Text position={[6.5, 0, 0]} fontSize={0.4} color="#ef4444">X</Text>
       
-      {/* Y Axis - Green */}
       <Line points={[[0, 0, 0], [0, 6, 0]]} color="#22c55e" lineWidth={2} />
       <Text position={[0, 6.5, 0]} fontSize={0.4} color="#22c55e">Y (Alt)</Text>
       
-      {/* Z Axis - Blue */}
       <Line points={[[0, 0, 0], [0, 0, 6]]} color="#3b82f6" lineWidth={2} />
       <Text position={[0, 0, 6.5]} fontSize={0.4} color="#3b82f6">Z</Text>
     </group>
   );
 };
 
-// Range circles in 3D
 const RangeCircles3D = () => {
   return (
     <group rotation={[-Math.PI / 2, 0, 0]}>
@@ -101,7 +99,6 @@ const RangeCircles3D = () => {
   );
 };
 
-// Grid floor
 const GridFloor = () => {
   return (
     <group rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.01, 0]}>
@@ -110,7 +107,6 @@ const GridFloor = () => {
   );
 };
 
-// Sweep beam in 3D
 const SweepBeam = ({ angle }: { angle: number }) => {
   const ref = useRef<THREE.Mesh>(null);
   
@@ -128,17 +124,18 @@ const SweepBeam = ({ angle }: { angle: number }) => {
   );
 };
 
-// Target marker in 3D
 const TargetMarker3D = ({ 
   target, 
   isVisible, 
   onClick,
-  isSelected
+  isSelected,
+  isGlobeTarget
 }: { 
   target: RadarTarget; 
   isVisible: boolean; 
   onClick: () => void;
   isSelected: boolean;
+  isGlobeTarget?: boolean;
 }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   
@@ -146,9 +143,19 @@ const TargetMarker3D = ({
   const radians = (target.angle - 90) * (Math.PI / 180);
   const x = normalizedDist * Math.cos(radians);
   const z = normalizedDist * Math.sin(radians);
-  const y = (target.altitude / 2000) * 2; // Scale altitude
+  const y = (target.altitude / 2000) * 2;
 
   const getColor = () => {
+    if (target.neutralized) return '#444444';
+    if (isGlobeTarget) {
+      switch (target.threatLevel) {
+        case 'critical': return '#ff0000';
+        case 'high': return '#ff4444';
+        case 'medium': return '#ff8800';
+        case 'low': return '#ffcc00';
+        default: return '#ef4444';
+      }
+    }
     switch (target.type) {
       case 'hostile': return '#ef4444';
       case 'neutral': return '#facc15';
@@ -158,20 +165,19 @@ const TargetMarker3D = ({
   };
 
   useFrame((state) => {
-    if (meshRef.current && isVisible) {
+    if (meshRef.current && isVisible && !target.neutralized) {
       meshRef.current.rotation.y += 0.02;
-      if (target.type === 'hostile') {
+      if (target.type === 'hostile' || isGlobeTarget) {
         const scale = 1 + Math.sin(state.clock.elapsedTime * 5) * 0.2;
         meshRef.current.scale.setScalar(scale);
       }
     }
   });
 
-  if (!isVisible) return null;
+  if (!isVisible || target.neutralized) return null;
 
   return (
     <group position={[x, y, z]}>
-      {/* Vertical line to ground */}
       <Line 
         points={[[0, 0, 0], [0, -y, 0]]} 
         color={getColor()} 
@@ -181,9 +187,8 @@ const TargetMarker3D = ({
         gapSize={0.05} 
       />
       
-      {/* Target marker */}
       <mesh ref={meshRef} onClick={onClick}>
-        {target.type === 'hostile' ? (
+        {target.type === 'hostile' || isGlobeTarget ? (
           <octahedronGeometry args={[0.2]} />
         ) : target.type === 'friendly' ? (
           <boxGeometry args={[0.25, 0.25, 0.25]} />
@@ -197,7 +202,6 @@ const TargetMarker3D = ({
         />
       </mesh>
 
-      {/* Selection ring */}
       {isSelected && (
         <mesh rotation={[-Math.PI / 2, 0, 0]}>
           <ringGeometry args={[0.3, 0.35, 32]} />
@@ -205,27 +209,26 @@ const TargetMarker3D = ({
         </mesh>
       )}
 
-      {/* Target label */}
       <Text 
         position={[0.3, 0.3, 0]} 
         fontSize={0.15} 
         color={getColor()}
         anchorX="left"
       >
-        {target.label}
+        {target.label || target.originCountry || 'TGT'}
       </Text>
     </group>
   );
 };
 
-// 3D Scene
 const Radar3DScene = ({ 
   targets, 
   sweepAngle, 
   visibleTargets, 
   selectedTarget, 
   setSelectedTarget,
-  typeFilters
+  typeFilters,
+  globeThreats
 }: {
   targets: RadarTarget[];
   sweepAngle: number;
@@ -233,8 +236,10 @@ const Radar3DScene = ({
   selectedTarget: RadarTarget | null;
   setSelectedTarget: (t: RadarTarget | null) => void;
   typeFilters: Record<string, boolean>;
+  globeThreats: RadarTarget[];
 }) => {
   const filteredTargets = targets.filter(t => typeFilters[t.type]);
+  const allTargets = [...filteredTargets, ...globeThreats.filter(t => !t.neutralized)];
 
   return (
     <>
@@ -247,13 +252,14 @@ const Radar3DScene = ({
       <RangeCircles3D />
       <SweepBeam angle={sweepAngle} />
       
-      {filteredTargets.map(target => (
+      {allTargets.map(target => (
         <TargetMarker3D
           key={target.id}
           target={target}
-          isVisible={visibleTargets.has(target.id)}
+          isVisible={visibleTargets.has(target.id) || !!target.originCountry}
           isSelected={selectedTarget?.id === target.id}
           onClick={() => setSelectedTarget(selectedTarget?.id === target.id ? null : target)}
+          isGlobeTarget={!!target.originCountry}
         />
       ))}
       
@@ -280,6 +286,7 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
   const [selectedTarget, setSelectedTarget] = useState<RadarTarget | null>(null);
   const [audioEnabled, setAudioEnabled] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [syncEnabled, setSyncEnabled] = useState(true);
   const [typeFilters, setTypeFilters] = useState({
     hostile: true,
     neutral: true,
@@ -287,6 +294,41 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
     friendly: true
   });
   const lastAlertTime = useRef(0);
+
+  // Get synchronized threats from Globe3D
+  const { threats: globeThreats } = useThreatState();
+
+  // Convert globe threats to radar format
+  const convertedGlobeThreats: RadarTarget[] = useMemo(() => {
+    if (!syncEnabled) return [];
+    
+    return globeThreats.filter(t => !t.neutralized).map(threat => {
+      // Scale distance for radar (globe shows km, radar uses meters up to 4km)
+      const radarDistance = Math.min(threat.distance * 10, MAX_RANGE); // Scale appropriately
+      const normalizedDist = (radarDistance / MAX_RANGE) * 5;
+      const radians = (threat.angle - 90) * (Math.PI / 180);
+      
+      return {
+        id: `globe-${threat.id}`,
+        angle: threat.angle,
+        distance: radarDistance,
+        altitude: threat.altitude / 10, // Scale altitude
+        type: 'hostile' as const,
+        velocity: threat.velocity,
+        acceleration: 0,
+        displacement: 0,
+        heading: (threat.angle + 180) % 360,
+        label: threat.originCountry,
+        lrfDistance: radarDistance,
+        x: normalizedDist * Math.cos(radians),
+        y: (threat.altitude / 20000) * 2,
+        z: normalizedDist * Math.sin(radians),
+        originCountry: threat.originCountry,
+        threatLevel: threat.threatLevel,
+        neutralized: threat.neutralized
+      };
+    });
+  }, [globeThreats, syncEnabled]);
 
   // Generate targets
   useEffect(() => {
@@ -327,7 +369,6 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
             )
           : 0;
 
-        // Calculate 3D coordinates
         const normalizedDist = (baseDistance / MAX_RANGE) * 5;
         const radians = (baseAngle - 90) * (Math.PI / 180);
         const x = normalizedDist * Math.cos(radians);
@@ -388,7 +429,6 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
     };
   }, [active]);
 
-  // Sweep animation
   useEffect(() => {
     if (!active) return;
     const interval = setInterval(() => {
@@ -397,18 +437,18 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
     return () => clearInterval(interval);
   }, [active]);
 
-  // Reveal targets and audio alerts
   useEffect(() => {
     const targets = externalTargets || internalTargets;
-    targets.forEach(target => {
+    const allTargets = [...targets, ...convertedGlobeThreats];
+    
+    allTargets.forEach(target => {
       const angleDiff = Math.abs(sweepAngle - target.angle);
       if (angleDiff < 8 || angleDiff > 352) {
         setVisibleTargets(prev => new Set(prev).add(target.id));
         
-        // Audio alert for close-range hostile targets
         if (
           audioEnabled && 
-          target.type === 'hostile' && 
+          (target.type === 'hostile' || target.originCountry) && 
           target.distance <= CLOSE_RANGE_ALERT &&
           Date.now() - lastAlertTime.current > 2000
         ) {
@@ -425,7 +465,7 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
         }, 6000);
       }
     });
-  }, [sweepAngle, externalTargets, internalTargets, audioEnabled]);
+  }, [sweepAngle, externalTargets, internalTargets, convertedGlobeThreats, audioEnabled]);
 
   const targets = externalTargets || internalTargets;
 
@@ -451,9 +491,10 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
     visibleTargets.has(t.id) && typeFilters[t.type]
   );
 
+  const activeGlobeThreats = convertedGlobeThreats.filter(t => !t.neutralized);
+
   return (
     <div className={cn("relative h-full min-h-[400px]", className)}>
-      {/* 3D Canvas */}
       <div className="absolute inset-0 rounded bg-gradient-to-b from-slate-950 via-slate-900 to-slate-950">
         <Canvas camera={{ position: [8, 6, 8], fov: 50 }}>
           <Suspense fallback={null}>
@@ -464,12 +505,12 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
               selectedTarget={selectedTarget}
               setSelectedTarget={setSelectedTarget}
               typeFilters={typeFilters}
+              globeThreats={convertedGlobeThreats}
             />
           </Suspense>
         </Canvas>
       </div>
 
-      {/* Controls overlay */}
       <div className="absolute top-2 left-2 flex flex-col gap-2 z-10">
         <div className="flex items-center gap-1 text-[9px] font-mono bg-black/60 px-2 py-1 rounded">
           <span className="text-muted-foreground">RADAR 3D</span>
@@ -478,7 +519,6 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
           </span>
         </div>
         
-        {/* Audio toggle */}
         <Button
           size="sm"
           variant="outline"
@@ -493,7 +533,6 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
           ALERT
         </Button>
 
-        {/* Filter toggle */}
         <Button
           size="sm"
           variant="outline"
@@ -504,7 +543,20 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
           FILTER
         </Button>
 
-        {/* Filter options */}
+        {/* Globe Sync Toggle */}
+        <Button
+          size="sm"
+          variant="outline"
+          className={cn(
+            "h-7 px-2 text-[9px] border-border",
+            syncEnabled ? "bg-emerald-500/20 border-emerald-500/50 text-emerald-400" : "bg-black/60"
+          )}
+          onClick={() => setSyncEnabled(!syncEnabled)}
+        >
+          <Radio className="w-3 h-3 mr-1" />
+          GLOBE SYNC
+        </Button>
+
         {showFilters && (
           <div className="bg-black/80 border border-border rounded p-2 text-[8px] font-mono">
             {(['hostile', 'neutral', 'unknown', 'friendly'] as const).map(type => (
@@ -522,7 +574,16 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
         )}
       </div>
 
-      {/* Axis legend */}
+      {/* Globe Threats Indicator */}
+      {syncEnabled && activeGlobeThreats.length > 0 && (
+        <div className="absolute top-2 left-[120px] bg-red-500/20 border border-red-500/50 rounded px-2 py-1 z-10">
+          <div className="text-[9px] font-mono text-red-400 flex items-center gap-1">
+            <Radio className="w-3 h-3 animate-pulse" />
+            <span>GLOBE THREATS: {activeGlobeThreats.length}</span>
+          </div>
+        </div>
+      )}
+
       <div className="absolute top-2 right-2 bg-black/60 px-2 py-1 rounded text-[8px] font-mono z-10">
         <div className="text-muted-foreground mb-1">3D AXES</div>
         <div className="text-red-500">X: Horizontal</div>
@@ -532,12 +593,10 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
         <div className="text-muted-foreground">LRF: ACTIVE</div>
       </div>
 
-      {/* Bearing */}
       <div className="absolute top-2 left-1/2 -translate-x-1/2 text-xl font-display text-orange-500 font-bold bg-black/40 px-3 py-1 rounded z-10">
         {String(Math.round(sweepAngle)).padStart(3, '0')}°
       </div>
 
-      {/* Legend */}
       <div className="absolute bottom-14 left-2 flex items-center gap-2 text-[7px] font-mono bg-black/60 px-2 py-1 rounded z-10">
         <div className="flex items-center gap-0.5">
           <AlertTriangle className="w-3 h-3 text-red-500" />
@@ -557,24 +616,25 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
         </div>
       </div>
 
-      {/* Selected target panel */}
       {selectedTarget && (
         <div className="absolute bottom-14 left-1/2 -translate-x-1/2 bg-card/95 backdrop-blur border border-border rounded-lg p-3 min-w-[280px] z-30 shadow-lg">
           <div className="flex items-center gap-2 mb-2 pb-2 border-b border-border">
-            <span className={cn("font-display text-sm", getTargetColor(selectedTarget.type))}>{selectedTarget.label}</span>
+            <span className={cn("font-display text-sm", selectedTarget.originCountry ? "text-red-400" : getTargetColor(selectedTarget.type))}>
+              {selectedTarget.label || selectedTarget.originCountry}
+            </span>
             <span className={cn(
               "text-[10px] uppercase px-1.5 py-0.5 rounded font-bold",
+              selectedTarget.originCountry ? 'bg-red-500 text-black' :
               selectedTarget.type === 'hostile' ? 'bg-red-500 text-black' :
               selectedTarget.type === 'neutral' ? 'bg-yellow-400 text-black' :
               selectedTarget.type === 'friendly' ? 'bg-emerald-400 text-black' :
               'bg-cyan-400 text-black'
             )}>
-              {selectedTarget.type}
+              {selectedTarget.originCountry ? selectedTarget.threatLevel?.toUpperCase() : selectedTarget.type}
             </span>
           </div>
           
           <div className="grid grid-cols-2 gap-x-4 gap-y-1 text-[9px] font-mono">
-            {/* 3D Coordinates */}
             <div className="col-span-2 bg-blue-500/10 rounded px-2 py-1 mb-1">
               <div className="flex justify-between">
                 <span className="text-blue-400">3D POSITION (X,Y,Z):</span>
@@ -584,7 +644,6 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
               </div>
             </div>
 
-            {/* LRF Distance */}
             <div className="col-span-2 bg-orange-500/10 rounded px-2 py-1 mb-1">
               <div className="flex justify-between">
                 <span className="text-orange-400">LRF DISTANCE:</span>
@@ -606,19 +665,12 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
               {selectedTarget.acceleration >= 0 ? '+' : ''}{selectedTarget.acceleration.toFixed(2)} m/s²
             </span>
             
-            <span className="text-muted-foreground">DISPLACEMENT:</span>
-            <span className="text-yellow-400">{formatDistance(selectedTarget.displacement)}</span>
-            
             <span className="text-muted-foreground">HEADING:</span>
             <span>{selectedTarget.heading.toFixed(1)}°</span>
-            
-            <span className="text-muted-foreground">TRAJECTORY PTS:</span>
-            <span>{selectedTarget.trajectory?.length || 0}</span>
           </div>
         </div>
       )}
 
-      {/* Stats bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-card/90 backdrop-blur border-t border-border p-1.5 z-10">
         <div className="flex items-center justify-between text-[9px] font-mono">
           <div className="flex items-center gap-3">
@@ -626,17 +678,17 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
               <AlertTriangle className="w-3 h-3 text-red-500" />
               <span className="text-muted-foreground">HOSTILE:</span>
               <span className="text-red-500 font-bold">
-                {visibleFilteredTargets.filter(t => t.type === 'hostile').length}
+                {visibleFilteredTargets.filter(t => t.type === 'hostile').length + activeGlobeThreats.length}
               </span>
             </div>
             <div className="flex items-center gap-1">
               <Target className="w-3 h-3 text-emerald-400" />
               <span className="text-muted-foreground">TRACKED:</span>
-              <span className="text-emerald-400 font-bold">{visibleFilteredTargets.length}</span>
+              <span className="text-emerald-400 font-bold">{visibleFilteredTargets.length + activeGlobeThreats.length}</span>
             </div>
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">TOTAL:</span>
-              <span className="text-primary font-bold">{targets.length}</span>
+              <span className="text-primary font-bold">{targets.length + activeGlobeThreats.length}</span>
             </div>
             {audioEnabled && (
               <div className="flex items-center gap-1 text-orange-400">
