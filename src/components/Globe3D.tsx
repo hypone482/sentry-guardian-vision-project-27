@@ -341,8 +341,9 @@ const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
   );
 };
 
-// Attack trajectory arc with prediction lines
-const AttackArc = ({ attack, targetLat, targetLng, showPrediction = true }: { attack: Attack; targetLat: number; targetLng: number; showPrediction?: boolean }) => {
+// Attack trajectory arc
+const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat: number; targetLng: number }) => {
+  const lineRef = useRef<any>(null);
   const headRef = useRef<THREE.Mesh>(null);
   
   const threatColors = {
@@ -354,7 +355,7 @@ const AttackArc = ({ attack, targetLat, targetLng, showPrediction = true }: { at
   
   const color = threatColors[attack.threatLevel];
   
-  // Get arc points for the current trajectory
+  // Get arc points for the trajectory
   const arcPoints = useMemo(() => {
     return getArcPoints(
       attack.originLat, attack.originLng,
@@ -365,24 +366,6 @@ const AttackArc = ({ attack, targetLat, targetLng, showPrediction = true }: { at
       0.4 + (attack.altitude / 50000) * 0.3
     );
   }, [attack, targetLat, targetLng]);
-
-  // Get FULL trajectory prediction path (from current position to target)
-  const predictionPoints = useMemo(() => {
-    return getArcPoints(
-      attack.originLat, attack.originLng,
-      targetLat, targetLng,
-      2,
-      60,
-      1, // Full path to target
-      0.4 + (attack.altitude / 50000) * 0.3
-    );
-  }, [attack.originLat, attack.originLng, attack.altitude, targetLat, targetLng]);
-
-  // Calculate future prediction points (from current position forward)
-  const futurePoints = useMemo(() => {
-    const currentIndex = Math.floor(predictionPoints.length * attack.progress);
-    return predictionPoints.slice(currentIndex);
-  }, [predictionPoints, attack.progress]);
 
   // Missile head position
   const headPosition = arcPoints.length > 0 ? arcPoints[arcPoints.length - 1] : null;
@@ -399,28 +382,7 @@ const AttackArc = ({ attack, targetLat, targetLng, showPrediction = true }: { at
 
   return (
     <group>
-      {/* Prediction/future trajectory line (dashed effect via lower opacity) */}
-      {showPrediction && futurePoints.length > 1 && (
-        <>
-          <Line 
-            points={futurePoints} 
-            color={color} 
-            lineWidth={1} 
-            transparent 
-            opacity={0.25}
-            dashed
-            dashSize={0.05}
-            gapSize={0.03}
-          />
-          {/* Impact prediction marker at target */}
-          <mesh position={predictionPoints[predictionPoints.length - 1]}>
-            <ringGeometry args={[0.02, 0.03, 16]} />
-            <meshBasicMaterial color={color} transparent opacity={0.5} side={THREE.DoubleSide} />
-          </mesh>
-        </>
-      )}
-      
-      {/* Main trajectory arc (traveled path) */}
+      {/* Main trajectory arc */}
       <Line 
         points={arcPoints} 
         color={color} 
@@ -504,8 +466,6 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
-  const [showPrediction, setShowPrediction] = useState(true);
-  const [showMissionBriefing, setShowMissionBriefing] = useState(true);
 
   // Initialize attacks from various global locations
   useEffect(() => {
@@ -770,8 +730,7 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
             <AttackArc 
               attack={attack} 
               targetLat={currentLocation.lat} 
-              targetLng={currentLocation.lng}
-              showPrediction={showPrediction}
+              targetLng={currentLocation.lng} 
             />
           </React.Fragment>
         ))}
@@ -818,20 +777,12 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           </div>
         </div>
         {/* Audio toggle */}
-        <div className="flex gap-1 mt-2">
-          <button 
-            onClick={() => setAudioEnabled(!audioEnabled)}
-            className={`text-[8px] font-mono px-2 py-0.5 rounded border transition-colors ${audioEnabled ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-red-500/50 text-red-400 bg-red-500/10'}`}
-          >
-            {audioEnabled ? '🔊' : '🔇'}
-          </button>
-          <button 
-            onClick={() => setShowPrediction(!showPrediction)}
-            className={`text-[8px] font-mono px-2 py-0.5 rounded border transition-colors ${showPrediction ? 'border-cyan-500/50 text-cyan-400 bg-cyan-500/10' : 'border-muted text-muted-foreground bg-muted/10'}`}
-          >
-            {showPrediction ? '📍 PRED' : '📍 OFF'}
-          </button>
-        </div>
+        <button 
+          onClick={() => setAudioEnabled(!audioEnabled)}
+          className={`mt-2 text-[8px] font-mono px-2 py-0.5 rounded border transition-colors ${audioEnabled ? 'border-emerald-500/50 text-emerald-400 bg-emerald-500/10' : 'border-red-500/50 text-red-400 bg-red-500/10'}`}
+        >
+          {audioEnabled ? '🔊 AUDIO ON' : '🔇 AUDIO OFF'}
+        </button>
       </div>
 
       {/* Active Threats Panel */}
@@ -886,98 +837,6 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
         <span className={`w-2 h-2 rounded-full ${active ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}`} />
         <span className="text-muted-foreground">{active ? 'TRACKING ACTIVE' : 'OFFLINE'}</span>
       </div>
-
-      {/* Mission Briefing Panel */}
-      {showMissionBriefing && (
-        <div className="absolute top-[220px] right-2 bg-black/90 backdrop-blur rounded-lg border border-cyan-500/40 p-2 w-[180px] shadow-lg shadow-cyan-500/10">
-          <div className="flex justify-between items-center mb-2">
-            <div className="text-[10px] font-display text-cyan-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 bg-cyan-400 rounded-full animate-pulse" />
-              MISSION BRIEFING
-            </div>
-            <button 
-              onClick={() => setShowMissionBriefing(false)}
-              className="text-muted-foreground hover:text-foreground text-[10px]"
-            >
-              ✕
-            </button>
-          </div>
-          
-          {/* Threat Analysis */}
-          <div className="mb-2">
-            <div className="text-[8px] text-muted-foreground uppercase mb-1">THREAT ANALYSIS</div>
-            <div className="text-[9px] font-mono space-y-0.5">
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Total Inbound:</span>
-                <span className="text-red-400 font-bold">{attacks.length}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Avg Velocity:</span>
-                <span>{Math.round(attacks.reduce((a, b) => a + b.velocity, 0) / attacks.length)} km/h</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Nearest ETA:</span>
-                <span className="text-red-400">{Math.round(Math.min(...attacks.map(a => a.eta)))}s</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Closest Threat:</span>
-                <span className="text-orange-400">{Math.round(Math.min(...attacks.map(a => a.distance)))} km</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Defense Priorities */}
-          <div className="mb-2">
-            <div className="text-[8px] text-muted-foreground uppercase mb-1">DEFENSE PRIORITIES</div>
-            <div className="space-y-1">
-              {attacks
-                .sort((a, b) => {
-                  // Priority: critical first, then by ETA
-                  const levelOrder = { critical: 0, high: 1, medium: 2, low: 3 };
-                  if (levelOrder[a.threatLevel] !== levelOrder[b.threatLevel]) {
-                    return levelOrder[a.threatLevel] - levelOrder[b.threatLevel];
-                  }
-                  return a.eta - b.eta;
-                })
-                .slice(0, 3)
-                .map((attack, i) => (
-                  <div 
-                    key={attack.id}
-                    className="text-[8px] font-mono flex items-center gap-1 p-1 rounded bg-card/30 border border-border/30"
-                  >
-                    <span className={`font-bold ${i === 0 ? 'text-red-500' : i === 1 ? 'text-orange-400' : 'text-yellow-400'}`}>
-                      P{i + 1}
-                    </span>
-                    <span className="text-muted-foreground">{attack.originCountry}</span>
-                    <span className="ml-auto text-cyan-400">{attack.type}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          {/* Recommended Action */}
-          <div>
-            <div className="text-[8px] text-muted-foreground uppercase mb-1">RECOMMENDED ACTION</div>
-            <div className="text-[9px] font-mono p-1.5 rounded bg-red-500/10 border border-red-500/30 text-red-300">
-              {threatCounts.critical > 0 
-                ? '⚠ ENGAGE CRITICAL THREATS - Activate all defense systems'
-                : threatCounts.high > 1
-                ? '🎯 PRIORITIZE HIGH THREATS - Deploy interceptors'
-                : '📡 MONITOR & TRACK - Maintain surveillance'}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Mission Briefing Toggle (when closed) */}
-      {!showMissionBriefing && (
-        <button
-          onClick={() => setShowMissionBriefing(true)}
-          className="absolute top-[220px] right-2 bg-black/80 backdrop-blur rounded border border-cyan-500/40 px-2 py-1 text-[9px] font-mono text-cyan-400 hover:bg-cyan-500/10 transition-colors"
-        >
-          📋 BRIEFING
-        </button>
-      )}
 
       {/* Selected Attack Detail */}
       {selectedAttack && (
