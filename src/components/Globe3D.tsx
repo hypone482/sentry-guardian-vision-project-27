@@ -16,15 +16,11 @@ interface Attack {
   originCountry: string;
   type: 'missile' | 'drone' | 'aircraft' | 'cyber' | 'artillery';
   threatLevel: 'critical' | 'high' | 'medium' | 'low';
-  velocity: number;
-  altitude: number;
-  eta: number;
-  progress: number;
-  distance: number;
-  intercepted?: boolean;
-  interceptProgress?: number;
-  predictedImpactLat?: number;
-  predictedImpactLng?: number;
+  velocity: number; // km/h
+  altitude: number; // meters
+  eta: number; // seconds
+  progress: number; // 0-1 animation progress
+  distance: number; // km from target
 }
 
 interface Target {
@@ -345,8 +341,8 @@ const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
   );
 };
 
-// Attack trajectory arc with prediction
-const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Attack; targetLat: number; targetLng: number; onIntercept?: (id: string) => void }) => {
+// Attack trajectory arc
+const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat: number; targetLng: number }) => {
   const lineRef = useRef<any>(null);
   const headRef = useRef<THREE.Mesh>(null);
   
@@ -357,36 +353,21 @@ const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Atta
     low: '#ffcc00'
   };
   
-  const color = attack.intercepted ? '#00ff88' : threatColors[attack.threatLevel];
+  const color = threatColors[attack.threatLevel];
   
-  // Full trajectory for prediction
-  const fullArcPoints = useMemo(() => {
-    return getArcPoints(
-      attack.originLat, attack.originLng,
-      targetLat, targetLng,
-      2, 60, 1,
-      0.4 + (attack.altitude / 50000) * 0.3
-    );
-  }, [attack.originLat, attack.originLng, targetLat, targetLng, attack.altitude]);
-
-  // Current progress arc
+  // Get arc points for the trajectory
   const arcPoints = useMemo(() => {
     return getArcPoints(
       attack.originLat, attack.originLng,
       targetLat, targetLng,
-      2, 60,
-      attack.intercepted ? (attack.interceptProgress || attack.progress) : attack.progress,
+      2,
+      60,
+      attack.progress,
       0.4 + (attack.altitude / 50000) * 0.3
     );
   }, [attack, targetLat, targetLng]);
 
-  // Predicted future path (dashed from current to impact)
-  const predictionPoints = useMemo(() => {
-    if (attack.intercepted) return [];
-    const startIdx = Math.floor(attack.progress * 60);
-    return fullArcPoints.slice(startIdx);
-  }, [attack.progress, attack.intercepted, fullArcPoints]);
-
+  // Missile head position
   const headPosition = arcPoints.length > 0 ? arcPoints[arcPoints.length - 1] : null;
 
   useFrame((state) => {
@@ -401,44 +382,27 @@ const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Atta
 
   return (
     <group>
-      {/* Predicted trajectory (dashed look via lower opacity) */}
-      {predictionPoints.length > 1 && (
-        <Line 
-          points={predictionPoints} 
-          color="#ffffff" 
-          lineWidth={1} 
-          transparent 
-          opacity={0.15}
-          dashed
-          dashSize={0.05}
-          gapSize={0.03}
-        />
-      )}
-
       {/* Main trajectory arc */}
       <Line 
         points={arcPoints} 
         color={color} 
         lineWidth={2} 
         transparent 
-        opacity={attack.intercepted ? 0.3 : 0.8}
+        opacity={0.8}
       />
       
-      {/* Glowing trail */}
+      {/* Glowing trail effect */}
       <Line 
         points={arcPoints} 
         color={color} 
         lineWidth={4} 
         transparent 
-        opacity={attack.intercepted ? 0.1 : 0.3}
+        opacity={0.3}
       />
       
-      {/* Missile head (clickable for interception) */}
-      {headPosition && !attack.intercepted && (
-        <mesh ref={headRef} position={headPosition} onClick={(e) => {
-          e.stopPropagation();
-          onIntercept?.(attack.id);
-        }}>
+      {/* Missile/threat head */}
+      {headPosition && (
+        <mesh ref={headRef} position={headPosition}>
           <coneGeometry args={[0.03, 0.06, 8]} />
           <meshStandardMaterial 
             color={color} 
@@ -446,29 +410,6 @@ const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Atta
             emissiveIntensity={1.5} 
           />
         </mesh>
-      )}
-
-      {/* Interception explosion effect */}
-      {attack.intercepted && headPosition && (
-        <mesh position={headPosition}>
-          <sphereGeometry args={[0.08, 16, 16]} />
-          <meshBasicMaterial color="#00ff88" transparent opacity={0.6} />
-        </mesh>
-      )}
-
-      {/* Predicted impact point marker */}
-      {!attack.intercepted && fullArcPoints.length > 0 && (
-        <group position={fullArcPoints[fullArcPoints.length - 1]}>
-          <mesh>
-            <ringGeometry args={[0.03, 0.04, 16]} />
-            <meshBasicMaterial color="#ff0000" transparent opacity={0.5} side={THREE.DoubleSide} />
-          </mesh>
-          <Html distanceFactor={10}>
-            <div className="text-[7px] font-mono text-red-400 bg-black/80 px-1 rounded whitespace-nowrap">
-              IMPACT T-{Math.round(attack.eta)}s
-            </div>
-          </Html>
-        </group>
       )}
     </group>
   );
@@ -525,7 +466,6 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
-  const [interceptedCount, setInterceptedCount] = useState(0);
 
   // Initialize attacks from various global locations
   useEffect(() => {
@@ -718,15 +658,14 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
 
     const interval = setInterval(() => {
       setAttacks(prev => prev.map(attack => {
-        // Skip intercepted attacks
-        if (attack.intercepted) return attack;
-
         let newProgress = attack.progress + 0.003 + (attack.velocity / 100000);
         
+        // Reset when reaching target
         if (newProgress >= 1) {
           newProgress = 0.05;
         }
         
+        // Update distance based on progress
         const totalDistance = haversineDistance(
           attack.originLat, attack.originLng,
           currentLocation.lat, currentLocation.lng
@@ -745,20 +684,11 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
     return () => clearInterval(interval);
   }, [active, currentLocation]);
 
-  const handleIntercept = useCallback((attackId: string) => {
-    setAttacks(prev => prev.map(a => 
-      a.id === attackId ? { ...a, intercepted: true, interceptProgress: a.progress } : a
-    ));
-    setInterceptedCount(prev => prev + 1);
-    playProximityAlert('low'); // confirmation beep
-  }, [playProximityAlert]);
-
   const threatCounts = useMemo(() => ({
-    critical: attacks.filter(a => a.threatLevel === 'critical' && !a.intercepted).length,
-    high: attacks.filter(a => a.threatLevel === 'high' && !a.intercepted).length,
-    medium: attacks.filter(a => a.threatLevel === 'medium' && !a.intercepted).length,
-    low: attacks.filter(a => a.threatLevel === 'low' && !a.intercepted).length,
-    intercepted: attacks.filter(a => a.intercepted).length,
+    critical: attacks.filter(a => a.threatLevel === 'critical').length,
+    high: attacks.filter(a => a.threatLevel === 'high').length,
+    medium: attacks.filter(a => a.threatLevel === 'medium').length,
+    low: attacks.filter(a => a.threatLevel === 'low').length
   }), [attacks]);
 
   return (
@@ -796,12 +726,11 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
         {/* Render all attack arcs and origin markers */}
         {attacks.map(attack => (
           <React.Fragment key={attack.id}>
-            {!attack.intercepted && <AttackOriginMarker attack={attack} />}
+            <AttackOriginMarker attack={attack} />
             <AttackArc 
               attack={attack} 
               targetLat={currentLocation.lat} 
-              targetLng={currentLocation.lng}
-              onIntercept={handleIntercept}
+              targetLng={currentLocation.lng} 
             />
           </React.Fragment>
         ))}
@@ -846,13 +775,6 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
             <span className="text-muted-foreground w-16">LOW:</span>
             <span className="text-yellow-500">{threatCounts.low}</span>
           </div>
-          {threatCounts.intercepted > 0 && (
-            <div className="flex items-center gap-2">
-              <span className="w-2 h-2 bg-emerald-500 rounded-full" />
-              <span className="text-muted-foreground w-16">NEUTRAL:</span>
-              <span className="text-emerald-400">{threatCounts.intercepted}</span>
-            </div>
-          )}
         </div>
         {/* Audio toggle */}
         <button 
@@ -867,7 +789,7 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
       <div className="absolute top-2 right-2 bg-black/85 backdrop-blur rounded-lg border border-border p-2 max-h-[200px] overflow-y-auto w-[180px]">
         <div className="text-[10px] font-display text-primary mb-2">ACTIVE THREATS</div>
         <div className="space-y-1.5">
-          {attacks.filter(a => !a.intercepted).slice(0, 5).map(attack => (
+          {attacks.slice(0, 5).map(attack => (
             <div 
               key={attack.id}
               className="text-[8px] font-mono p-1.5 rounded bg-card/50 border border-border/50 cursor-pointer hover:bg-card/80 transition-colors"
@@ -880,12 +802,7 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
                 >
                   {attack.originCountry}
                 </span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleIntercept(attack.id); }}
-                  className="text-[7px] px-1 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/40 hover:bg-emerald-500/40 transition-colors"
-                >
-                  INTERCEPT
-                </button>
+                <span className="text-muted-foreground">{attack.type.toUpperCase()}</span>
               </div>
               <div className="flex justify-between mt-0.5 text-muted-foreground">
                 <span>DST: {Math.round(attack.distance)}km</span>
@@ -967,18 +884,6 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
                 {selectedAttack.threatLevel}
               </span>
             </div>
-            {!selectedAttack.intercepted ? (
-              <button
-                onClick={() => { handleIntercept(selectedAttack.id); setSelectedAttack(null); }}
-                className="w-full mt-2 py-1 text-[9px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 hover:bg-emerald-500/40 transition-colors"
-              >
-                🎯 INTERCEPT THREAT
-              </button>
-            ) : (
-              <div className="mt-2 py-1 text-[9px] text-center font-bold text-emerald-400 bg-emerald-500/10 rounded border border-emerald-500/30">
-                ✓ NEUTRALIZED
-              </div>
-            )}
           </div>
         </div>
       )}
