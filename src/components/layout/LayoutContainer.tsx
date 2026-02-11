@@ -13,6 +13,7 @@ import Globe3D from '@/components/Globe3D';
 import JoystickControl from '@/components/JoystickControl';
 import SystemData from '@/components/SystemData';
 import EventLog, { LogEvent } from '@/components/EventLog';
+import HVBatteryPanel from '@/components/HVBatteryPanel';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 interface PanelConfig {
   id: string;
@@ -85,6 +86,11 @@ const DEFAULT_PANELS: PanelConfig[] = [{
   title: 'Events',
   visible: true,
   column: 'left'
+}, {
+  id: 'battery',
+  title: 'HV Battery',
+  visible: true,
+  column: 'right'
 }];
 const LayoutContainer: React.FC<LayoutContainerProps> = ({
   systemActive,
@@ -172,6 +178,8 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
         return <SystemData detectionData={detectionData} />;
       case 'events':
         return <EventLog events={logEvents} />;
+      case 'battery':
+        return <HVBatteryPanel active={systemActive} />;
       default:
         return null;
     }
