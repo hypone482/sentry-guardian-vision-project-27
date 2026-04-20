@@ -923,6 +923,13 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
         >
           {audioEnabled ? '🔊 AUDIO ON' : '🔇 AUDIO OFF'}
         </button>
+        <div className="mt-2 pt-2 border-t border-border/40 text-[9px] font-mono flex items-center justify-between">
+          <span className="text-muted-foreground">INTERCEPTED:</span>
+          <span className="text-cyan-400 font-bold">{interceptedCount}</span>
+        </div>
+        <div className="text-[7px] font-mono text-muted-foreground/70 mt-1">
+          ▸ Click missile head to neutralize
+        </div>
       </div>
 
       {/* Active Threats Panel */}
