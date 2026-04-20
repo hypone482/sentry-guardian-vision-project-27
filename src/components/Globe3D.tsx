@@ -342,7 +342,7 @@ const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
 };
 
 // Attack trajectory arc
-const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat: number; targetLng: number }) => {
+const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Attack; targetLat: number; targetLng: number; onIntercept?: (id: string) => void }) => {
   const lineRef = useRef<any>(null);
   const headRef = useRef<THREE.Mesh>(null);
   
@@ -355,7 +355,7 @@ const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat
   
   const color = threatColors[attack.threatLevel];
   
-  // Get arc points for the trajectory
+  // Get arc points for the trajectory (traveled portion)
   const arcPoints = useMemo(() => {
     return getArcPoints(
       attack.originLat, attack.originLng,
@@ -365,6 +365,20 @@ const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat
       attack.progress,
       0.4 + (attack.altitude / 50000) * 0.3
     );
+  }, [attack, targetLat, targetLng]);
+
+  // Predicted future trajectory (remaining portion as dashed line)
+  const predictedPoints = useMemo(() => {
+    const all = getArcPoints(
+      attack.originLat, attack.originLng,
+      targetLat, targetLng,
+      2,
+      60,
+      1,
+      0.4 + (attack.altitude / 50000) * 0.3
+    );
+    const startIdx = Math.floor(60 * attack.progress);
+    return all.slice(startIdx);
   }, [attack, targetLat, targetLng]);
 
   // Missile head position
@@ -382,36 +396,97 @@ const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat
 
   return (
     <group>
-      {/* Main trajectory arc */}
-      <Line 
-        points={arcPoints} 
-        color={color} 
-        lineWidth={2} 
-        transparent 
-        opacity={0.8}
-      />
-      
+      {/* Main trajectory arc (traveled) */}
+      <Line points={arcPoints} color={color} lineWidth={2} transparent opacity={0.85} />
+
       {/* Glowing trail effect */}
-      <Line 
-        points={arcPoints} 
-        color={color} 
-        lineWidth={4} 
-        transparent 
-        opacity={0.3}
-      />
-      
-      {/* Missile/threat head */}
+      <Line points={arcPoints} color={color} lineWidth={4} transparent opacity={0.3} />
+
+      {/* Predicted future trajectory (dashed) */}
+      {predictedPoints.length > 1 && (
+        <Line
+          points={predictedPoints}
+          color={color}
+          lineWidth={1}
+          transparent
+          opacity={0.45}
+          dashed
+          dashSize={0.05}
+          gapSize={0.05}
+        />
+      )}
+
+      {/* Missile/threat head - clickable to intercept */}
       {headPosition && (
-        <mesh ref={headRef} position={headPosition}>
-          <coneGeometry args={[0.03, 0.06, 8]} />
-          <meshStandardMaterial 
-            color={color} 
-            emissive={color} 
-            emissiveIntensity={1.5} 
-          />
+        <mesh
+          ref={headRef}
+          position={headPosition}
+          onClick={(e) => {
+            e.stopPropagation();
+            onIntercept?.(attack.id);
+          }}
+          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'crosshair'; }}
+          onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+        >
+          <coneGeometry args={[0.04, 0.08, 8]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} />
         </mesh>
       )}
     </group>
+  );
+};
+
+// Predicted impact point marker (where the threat will land)
+const PredictedImpactMarker = ({ lat, lng, eta, threatLevel }: { lat: number; lng: number; eta: number; threatLevel: Attack['threatLevel'] }) => {
+  const position = latLngToVector3(lat, lng, 2.04);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const color = threatLevel === 'critical' ? '#ff0000' : threatLevel === 'high' ? '#ff6600' : '#ffaa00';
+
+  useFrame((state) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.z += 0.02;
+      const s = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.15;
+      ringRef.current.scale.setScalar(s);
+    }
+  });
+
+  return (
+    <group position={position}>
+      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.05, 0.07, 24]} />
+        <meshBasicMaterial color={color} transparent opacity={0.7} side={THREE.DoubleSide} />
+      </mesh>
+      <Html distanceFactor={10}>
+        <div className="text-[7px] font-mono px-1 rounded bg-black/80 border whitespace-nowrap" style={{ color, borderColor: color }}>
+          IMPACT {Math.round(eta)}s
+        </div>
+      </Html>
+    </group>
+  );
+};
+
+// Interception burst effect
+const InterceptBurst = ({ position, onComplete }: { position: THREE.Vector3; onComplete: () => void }) => {
+  const ref = useRef<THREE.Mesh>(null);
+  const startRef = useRef<number | null>(null);
+
+  useFrame((state) => {
+    if (startRef.current === null) startRef.current = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime - startRef.current;
+    if (ref.current) {
+      const s = 0.1 + t * 4;
+      ref.current.scale.setScalar(s);
+      const mat = ref.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = Math.max(0, 1 - t * 1.5);
+    }
+    if (t > 0.8) onComplete();
+  });
+
+  return (
+    <mesh ref={ref} position={position}>
+      <sphereGeometry args={[0.05, 16, 16]} />
+      <meshBasicMaterial color="#00ffff" transparent opacity={1} />
+    </mesh>
   );
 };
 
@@ -466,6 +541,8 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
+  const [interceptedCount, setInterceptedCount] = useState(0);
+  const [bursts, setBursts] = useState<{ id: string; position: THREE.Vector3 }[]>([]);
 
   // Initialize attacks from various global locations
   useEffect(() => {
@@ -691,6 +768,45 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
     low: attacks.filter(a => a.threatLevel === 'low').length
   }), [attacks]);
 
+  // Intercept handler - removes attack and triggers burst
+  const handleIntercept = useCallback((attackId: string) => {
+    setAttacks(prev => {
+      const target = prev.find(a => a.id === attackId);
+      if (target) {
+        // Compute current head position for burst
+        const pts = getArcPoints(
+          target.originLat, target.originLng,
+          currentLocation.lat, currentLocation.lng,
+          2, 60, target.progress,
+          0.4 + (target.altitude / 50000) * 0.3
+        );
+        const pos = pts[pts.length - 1];
+        if (pos) {
+          setBursts(b => [...b, { id: `burst-${Date.now()}-${attackId}`, position: pos }]);
+        }
+        // Audio feedback
+        if (audioEnabled && audioContextRef.current) {
+          const ctx = audioContextRef.current;
+          if (ctx.state === 'suspended') ctx.resume();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.setValueAtTime(1200, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3);
+          osc.type = 'sawtooth';
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.4);
+        }
+      }
+      setInterceptedCount(c => c + 1);
+      return prev.filter(a => a.id !== attackId);
+    });
+    setSelectedAttack(s => (s?.id === attackId ? null : s));
+  }, [currentLocation, audioEnabled]);
+
   return (
     <div className={`relative w-full h-full min-h-[350px] ${className}`}>
       <Canvas 
@@ -723,6 +839,29 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           threatCount={attacks.length} 
         />
 
+        {/* Predicted impact marker for top critical/high threats */}
+        {attacks
+          .filter(a => a.threatLevel === 'critical' || a.threatLevel === 'high')
+          .slice(0, 3)
+          .map(a => (
+            <PredictedImpactMarker
+              key={`pred-${a.id}`}
+              lat={currentLocation.lat}
+              lng={currentLocation.lng}
+              eta={a.eta}
+              threatLevel={a.threatLevel}
+            />
+          ))}
+
+        {/* Interception bursts */}
+        {bursts.map(b => (
+          <InterceptBurst
+            key={b.id}
+            position={b.position}
+            onComplete={() => setBursts(prev => prev.filter(x => x.id !== b.id))}
+          />
+        ))}
+
         {/* Render all attack arcs and origin markers */}
         {attacks.map(attack => (
           <React.Fragment key={attack.id}>
@@ -730,7 +869,8 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
             <AttackArc 
               attack={attack} 
               targetLat={currentLocation.lat} 
-              targetLng={currentLocation.lng} 
+              targetLng={currentLocation.lng}
+              onIntercept={handleIntercept}
             />
           </React.Fragment>
         ))}
@@ -783,6 +923,13 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
         >
           {audioEnabled ? '🔊 AUDIO ON' : '🔇 AUDIO OFF'}
         </button>
+        <div className="mt-2 pt-2 border-t border-border/40 text-[9px] font-mono flex items-center justify-between">
+          <span className="text-muted-foreground">INTERCEPTED:</span>
+          <span className="text-cyan-400 font-bold">{interceptedCount}</span>
+        </div>
+        <div className="text-[7px] font-mono text-muted-foreground/70 mt-1">
+          ▸ Click missile head to neutralize
+        </div>
       </div>
 
       {/* Active Threats Panel */}
