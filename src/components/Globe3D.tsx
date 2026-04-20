@@ -342,7 +342,7 @@ const AttackOriginMarker = ({ attack }: { attack: Attack }) => {
 };
 
 // Attack trajectory arc
-const AttackArc = ({ attack, targetLat, targetLng }: { attack: Attack; targetLat: number; targetLng: number }) => {
+const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Attack; targetLat: number; targetLng: number; onIntercept?: (id: string) => void }) => {
   const lineRef = useRef<any>(null);
   const headRef = useRef<THREE.Mesh>(null);
   
