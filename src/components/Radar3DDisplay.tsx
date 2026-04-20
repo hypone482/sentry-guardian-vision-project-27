@@ -235,7 +235,8 @@ const Radar3DScene = ({
   setSelectedTarget: (t: RadarTarget | null) => void;
   typeFilters: Record<string, boolean>;
 }) => {
-  const filteredTargets = targets.filter(t => typeFilters[t.type]);
+  const interceptedIds = useThreatStore((s) => s.interceptedIds);
+  const filteredTargets = targets.filter(t => typeFilters[t.type] && !interceptedIds.has(t.id));
 
   return (
     <>
