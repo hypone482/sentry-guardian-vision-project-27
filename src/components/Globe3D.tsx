@@ -768,6 +768,45 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
     low: attacks.filter(a => a.threatLevel === 'low').length
   }), [attacks]);
 
+  // Intercept handler - removes attack and triggers burst
+  const handleIntercept = useCallback((attackId: string) => {
+    setAttacks(prev => {
+      const target = prev.find(a => a.id === attackId);
+      if (target) {
+        // Compute current head position for burst
+        const pts = getArcPoints(
+          target.originLat, target.originLng,
+          currentLocation.lat, currentLocation.lng,
+          2, 60, target.progress,
+          0.4 + (target.altitude / 50000) * 0.3
+        );
+        const pos = pts[pts.length - 1];
+        if (pos) {
+          setBursts(b => [...b, { id: `burst-${Date.now()}-${attackId}`, position: pos }]);
+        }
+        // Audio feedback
+        if (audioEnabled && audioContextRef.current) {
+          const ctx = audioContextRef.current;
+          if (ctx.state === 'suspended') ctx.resume();
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.frequency.setValueAtTime(1200, ctx.currentTime);
+          osc.frequency.exponentialRampToValueAtTime(200, ctx.currentTime + 0.3);
+          osc.type = 'sawtooth';
+          gain.gain.setValueAtTime(0.3, ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.4);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.4);
+        }
+      }
+      setInterceptedCount(c => c + 1);
+      return prev.filter(a => a.id !== attackId);
+    });
+    setSelectedAttack(s => (s?.id === attackId ? null : s));
+  }, [currentLocation, audioEnabled]);
+
   return (
     <div className={`relative w-full h-full min-h-[350px] ${className}`}>
       <Canvas 
@@ -800,6 +839,29 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           threatCount={attacks.length} 
         />
 
+        {/* Predicted impact marker for top critical/high threats */}
+        {attacks
+          .filter(a => a.threatLevel === 'critical' || a.threatLevel === 'high')
+          .slice(0, 3)
+          .map(a => (
+            <PredictedImpactMarker
+              key={`pred-${a.id}`}
+              lat={currentLocation.lat}
+              lng={currentLocation.lng}
+              eta={a.eta}
+              threatLevel={a.threatLevel}
+            />
+          ))}
+
+        {/* Interception bursts */}
+        {bursts.map(b => (
+          <InterceptBurst
+            key={b.id}
+            position={b.position}
+            onComplete={() => setBursts(prev => prev.filter(x => x.id !== b.id))}
+          />
+        ))}
+
         {/* Render all attack arcs and origin markers */}
         {attacks.map(attack => (
           <React.Fragment key={attack.id}>
@@ -807,7 +869,8 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
             <AttackArc 
               attack={attack} 
               targetLat={currentLocation.lat} 
-              targetLng={currentLocation.lng} 
+              targetLng={currentLocation.lng}
+              onIntercept={handleIntercept}
             />
           </React.Fragment>
         ))}
