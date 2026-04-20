@@ -541,6 +541,8 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
+  const [interceptedCount, setInterceptedCount] = useState(0);
+  const [bursts, setBursts] = useState<{ id: string; position: THREE.Vector3 }[]>([]);
 
   // Initialize attacks from various global locations
   useEffect(() => {
