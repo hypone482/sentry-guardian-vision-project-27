@@ -3,8 +3,9 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { cn } from '@/lib/utils';
-import { Plane, Target, AlertTriangle, HelpCircle, Shield, Volume2, VolumeX, Filter } from 'lucide-react';
+import { Plane, Target, AlertTriangle, HelpCircle, Shield, Volume2, VolumeX, Filter, Crosshair } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useThreatStore } from '@/stores/threatStore';
 
 interface RadarTarget {
   id: string;
@@ -288,6 +289,11 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
   });
   const lastAlertTime = useRef(0);
 
+  // Shared threat sync (Globe ↔ Radar)
+  const interceptedIds = useThreatStore((s) => s.interceptedIds);
+  const interceptedCount = useThreatStore((s) => s.interceptedCount);
+  const interceptThreat = useThreatStore((s) => s.intercept);
+
   // Generate targets
   useEffect(() => {
     if (!active) {
@@ -448,7 +454,7 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
   };
 
   const visibleFilteredTargets = targets.filter(t => 
-    visibleTargets.has(t.id) && typeFilters[t.type]
+    visibleTargets.has(t.id) && typeFilters[t.type] && !interceptedIds.has(t.id)
   );
 
   return (
