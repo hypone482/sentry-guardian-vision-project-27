@@ -3,8 +3,9 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Text, Line } from '@react-three/drei';
 import * as THREE from 'three';
 import { cn } from '@/lib/utils';
-import { Plane, Target, AlertTriangle, HelpCircle, Shield, Volume2, VolumeX, Filter } from 'lucide-react';
+import { Plane, Target, AlertTriangle, HelpCircle, Shield, Volume2, VolumeX, Filter, Crosshair } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { useThreatStore } from '@/stores/threatStore';
 
 interface RadarTarget {
   id: string;
@@ -234,7 +235,8 @@ const Radar3DScene = ({
   setSelectedTarget: (t: RadarTarget | null) => void;
   typeFilters: Record<string, boolean>;
 }) => {
-  const filteredTargets = targets.filter(t => typeFilters[t.type]);
+  const interceptedIds = useThreatStore((s) => s.interceptedIds);
+  const filteredTargets = targets.filter(t => typeFilters[t.type] && !interceptedIds.has(t.id));
 
   return (
     <>
@@ -287,6 +289,11 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
     friendly: true
   });
   const lastAlertTime = useRef(0);
+
+  // Shared threat sync (Globe ↔ Radar)
+  const interceptedIds = useThreatStore((s) => s.interceptedIds);
+  const interceptedCount = useThreatStore((s) => s.interceptedCount);
+  const interceptThreat = useThreatStore((s) => s.intercept);
 
   // Generate targets
   useEffect(() => {
@@ -448,7 +455,7 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
   };
 
   const visibleFilteredTargets = targets.filter(t => 
-    visibleTargets.has(t.id) && typeFilters[t.type]
+    visibleTargets.has(t.id) && typeFilters[t.type] && !interceptedIds.has(t.id)
   );
 
   return (
@@ -615,6 +622,21 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
             <span className="text-muted-foreground">TRAJECTORY PTS:</span>
             <span>{selectedTarget.trajectory?.length || 0}</span>
           </div>
+
+          {selectedTarget.type === 'hostile' && (
+            <Button
+              size="sm"
+              variant="destructive"
+              className="w-full mt-3 h-7 text-[10px] font-display"
+              onClick={() => {
+                interceptThreat(selectedTarget.id);
+                setSelectedTarget(null);
+              }}
+            >
+              <Crosshair className="w-3 h-3 mr-1" />
+              INTERCEPT TARGET
+            </Button>
+          )}
         </div>
       )}
 
@@ -637,6 +659,11 @@ const Radar3DDisplay: React.FC<Radar3DDisplayProps> = ({
             <div className="flex items-center gap-1">
               <span className="text-muted-foreground">TOTAL:</span>
               <span className="text-primary font-bold">{targets.length}</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <Crosshair className="w-3 h-3 text-cyan-400" />
+              <span className="text-muted-foreground">INTERCEPTED:</span>
+              <span className="text-cyan-400 font-bold">{interceptedCount}</span>
             </div>
             {audioEnabled && (
               <div className="flex items-center gap-1 text-orange-400">

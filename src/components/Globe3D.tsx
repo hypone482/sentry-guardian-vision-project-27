@@ -7,6 +7,7 @@ import earthTexture from '@/assets/earth-texture.jpg';
 import earthNormal from '@/assets/earth-normal.jpg';
 import earthSpecular from '@/assets/earth-specular.jpg';
 import earthClouds from '@/assets/earth-clouds.png';
+import { useThreatStore } from '@/stores/threatStore';
 
 interface Attack {
   id: string;
@@ -541,8 +542,26 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
-  const [interceptedCount, setInterceptedCount] = useState(0);
   const [bursts, setBursts] = useState<{ id: string; position: THREE.Vector3 }[]>([]);
+
+  // Shared threat sync store (Globe ↔ Radar)
+  const interceptedIds = useThreatStore((s) => s.interceptedIds);
+  const interceptedCount = useThreatStore((s) => s.interceptedCount);
+  const interceptThreat = useThreatStore((s) => s.intercept);
+  const registerMapping = useThreatStore((s) => s.registerMapping);
+
+  // Filter out intercepted attacks so they vanish from the globe
+  const visibleAttacks = useMemo(
+    () => attacks.filter((a) => !interceptedIds.has(a.id)),
+    [attacks, interceptedIds],
+  );
+
+  // Register globe→radar id mapping (radar ids are derived deterministically)
+  useEffect(() => {
+    attacks.forEach((a, idx) => {
+      registerMapping(a.id, `radar-sync-${idx + 1}`);
+    });
+  }, [attacks, registerMapping]);
 
   // Initialize attacks from various global locations
   useEffect(() => {
@@ -801,11 +820,12 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           osc.stop(ctx.currentTime + 0.4);
         }
       }
-      setInterceptedCount(c => c + 1);
+      // Sync interception across Globe + Radar via shared store
+      interceptThreat(attackId);
       return prev.filter(a => a.id !== attackId);
     });
     setSelectedAttack(s => (s?.id === attackId ? null : s));
-  }, [currentLocation, audioEnabled]);
+  }, [currentLocation, audioEnabled, interceptThreat]);
 
   return (
     <div className={`relative w-full h-full min-h-[350px] ${className}`}>
@@ -862,8 +882,8 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           />
         ))}
 
-        {/* Render all attack arcs and origin markers */}
-        {attacks.map(attack => (
+        {/* Render all attack arcs and origin markers (intercepted ones filtered out) */}
+        {visibleAttacks.map(attack => (
           <React.Fragment key={attack.id}>
             <AttackOriginMarker attack={attack} />
             <AttackArc 
