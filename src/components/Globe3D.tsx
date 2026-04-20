@@ -820,11 +820,12 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           osc.stop(ctx.currentTime + 0.4);
         }
       }
-      setInterceptedCount(c => c + 1);
+      // Sync interception across Globe + Radar via shared store
+      interceptThreat(attackId);
       return prev.filter(a => a.id !== attackId);
     });
     setSelectedAttack(s => (s?.id === attackId ? null : s));
-  }, [currentLocation, audioEnabled]);
+  }, [currentLocation, audioEnabled, interceptThreat]);
 
   return (
     <div className={`relative w-full h-full min-h-[350px] ${className}`}>
@@ -881,8 +882,8 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
           />
         ))}
 
-        {/* Render all attack arcs and origin markers */}
-        {attacks.map(attack => (
+        {/* Render all attack arcs and origin markers (intercepted ones filtered out) */}
+        {visibleAttacks.map(attack => (
           <React.Fragment key={attack.id}>
             <AttackOriginMarker attack={attack} />
             <AttackArc 
