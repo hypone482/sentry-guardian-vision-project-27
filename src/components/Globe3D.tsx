@@ -355,7 +355,7 @@ const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Atta
   
   const color = threatColors[attack.threatLevel];
   
-  // Get arc points for the trajectory
+  // Get arc points for the trajectory (traveled portion)
   const arcPoints = useMemo(() => {
     return getArcPoints(
       attack.originLat, attack.originLng,
@@ -365,6 +365,20 @@ const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Atta
       attack.progress,
       0.4 + (attack.altitude / 50000) * 0.3
     );
+  }, [attack, targetLat, targetLng]);
+
+  // Predicted future trajectory (remaining portion as dashed line)
+  const predictedPoints = useMemo(() => {
+    const all = getArcPoints(
+      attack.originLat, attack.originLng,
+      targetLat, targetLng,
+      2,
+      60,
+      1,
+      0.4 + (attack.altitude / 50000) * 0.3
+    );
+    const startIdx = Math.floor(60 * attack.progress);
+    return all.slice(startIdx);
   }, [attack, targetLat, targetLng]);
 
   // Missile head position
@@ -382,36 +396,97 @@ const AttackArc = ({ attack, targetLat, targetLng, onIntercept }: { attack: Atta
 
   return (
     <group>
-      {/* Main trajectory arc */}
-      <Line 
-        points={arcPoints} 
-        color={color} 
-        lineWidth={2} 
-        transparent 
-        opacity={0.8}
-      />
-      
+      {/* Main trajectory arc (traveled) */}
+      <Line points={arcPoints} color={color} lineWidth={2} transparent opacity={0.85} />
+
       {/* Glowing trail effect */}
-      <Line 
-        points={arcPoints} 
-        color={color} 
-        lineWidth={4} 
-        transparent 
-        opacity={0.3}
-      />
-      
-      {/* Missile/threat head */}
+      <Line points={arcPoints} color={color} lineWidth={4} transparent opacity={0.3} />
+
+      {/* Predicted future trajectory (dashed) */}
+      {predictedPoints.length > 1 && (
+        <Line
+          points={predictedPoints}
+          color={color}
+          lineWidth={1}
+          transparent
+          opacity={0.45}
+          dashed
+          dashSize={0.05}
+          gapSize={0.05}
+        />
+      )}
+
+      {/* Missile/threat head - clickable to intercept */}
       {headPosition && (
-        <mesh ref={headRef} position={headPosition}>
-          <coneGeometry args={[0.03, 0.06, 8]} />
-          <meshStandardMaterial 
-            color={color} 
-            emissive={color} 
-            emissiveIntensity={1.5} 
-          />
+        <mesh
+          ref={headRef}
+          position={headPosition}
+          onClick={(e) => {
+            e.stopPropagation();
+            onIntercept?.(attack.id);
+          }}
+          onPointerOver={(e) => { e.stopPropagation(); document.body.style.cursor = 'crosshair'; }}
+          onPointerOut={() => { document.body.style.cursor = 'auto'; }}
+        >
+          <coneGeometry args={[0.04, 0.08, 8]} />
+          <meshStandardMaterial color={color} emissive={color} emissiveIntensity={1.5} />
         </mesh>
       )}
     </group>
+  );
+};
+
+// Predicted impact point marker (where the threat will land)
+const PredictedImpactMarker = ({ lat, lng, eta, threatLevel }: { lat: number; lng: number; eta: number; threatLevel: Attack['threatLevel'] }) => {
+  const position = latLngToVector3(lat, lng, 2.04);
+  const ringRef = useRef<THREE.Mesh>(null);
+  const color = threatLevel === 'critical' ? '#ff0000' : threatLevel === 'high' ? '#ff6600' : '#ffaa00';
+
+  useFrame((state) => {
+    if (ringRef.current) {
+      ringRef.current.rotation.z += 0.02;
+      const s = 1 + Math.sin(state.clock.elapsedTime * 3) * 0.15;
+      ringRef.current.scale.setScalar(s);
+    }
+  });
+
+  return (
+    <group position={position}>
+      <mesh ref={ringRef} rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.05, 0.07, 24]} />
+        <meshBasicMaterial color={color} transparent opacity={0.7} side={THREE.DoubleSide} />
+      </mesh>
+      <Html distanceFactor={10}>
+        <div className="text-[7px] font-mono px-1 rounded bg-black/80 border whitespace-nowrap" style={{ color, borderColor: color }}>
+          IMPACT {Math.round(eta)}s
+        </div>
+      </Html>
+    </group>
+  );
+};
+
+// Interception burst effect
+const InterceptBurst = ({ position, onComplete }: { position: THREE.Vector3; onComplete: () => void }) => {
+  const ref = useRef<THREE.Mesh>(null);
+  const startRef = useRef<number | null>(null);
+
+  useFrame((state) => {
+    if (startRef.current === null) startRef.current = state.clock.elapsedTime;
+    const t = state.clock.elapsedTime - startRef.current;
+    if (ref.current) {
+      const s = 0.1 + t * 4;
+      ref.current.scale.setScalar(s);
+      const mat = ref.current.material as THREE.MeshBasicMaterial;
+      mat.opacity = Math.max(0, 1 - t * 1.5);
+    }
+    if (t > 0.8) onComplete();
+  });
+
+  return (
+    <mesh ref={ref} position={position}>
+      <sphereGeometry args={[0.05, 16, 16]} />
+      <meshBasicMaterial color="#00ffff" transparent opacity={1} />
+    </mesh>
   );
 };
 
