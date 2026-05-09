@@ -14,7 +14,74 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      interceptions: {
+        Row: {
+          id: string
+          intercepted_at: string
+          intercepted_by: string | null
+          threat_id: string
+        }
+        Insert: {
+          id?: string
+          intercepted_at?: string
+          intercepted_by?: string | null
+          threat_id: string
+        }
+        Update: {
+          id?: string
+          intercepted_at?: string
+          intercepted_by?: string | null
+          threat_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "interceptions_threat_id_fkey"
+            columns: ["threat_id"]
+            isOneToOne: false
+            referencedRelation: "threats"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      threats: {
+        Row: {
+          created_at: string
+          eta_seconds: number
+          id: string
+          origin_lat: number
+          origin_lon: number
+          priority: string
+          radar_id: string | null
+          status: string
+          target_lat: number
+          target_lon: number
+        }
+        Insert: {
+          created_at?: string
+          eta_seconds?: number
+          id?: string
+          origin_lat: number
+          origin_lon: number
+          priority?: string
+          radar_id?: string | null
+          status?: string
+          target_lat: number
+          target_lon: number
+        }
+        Update: {
+          created_at?: string
+          eta_seconds?: number
+          id?: string
+          origin_lat?: number
+          origin_lon?: number
+          priority?: string
+          radar_id?: string | null
+          status?: string
+          target_lat?: number
+          target_lon?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

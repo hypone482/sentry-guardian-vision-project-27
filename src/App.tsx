@@ -8,8 +8,12 @@ import Install from "./pages/Install";
 import Settings from "./pages/Settings";
 import Workspace from "./pages/Workspace";
 import NotFound from "./pages/NotFound";
+import { useEffect } from "react";
+import { useThreatStore } from "@/stores/threatStore";
 const queryClient = new QueryClient();
-const App = () => <QueryClientProvider client={queryClient}>
+const App = () => {
+  useEffect(() => { useThreatStore.getState().init(); }, []);
+  return <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -25,4 +29,5 @@ const App = () => <QueryClientProvider client={queryClient}>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>;
+};
 export default App;
