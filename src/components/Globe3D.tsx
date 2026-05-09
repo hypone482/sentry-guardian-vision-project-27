@@ -544,11 +544,13 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
   const [bursts, setBursts] = useState<{ id: string; position: THREE.Vector3 }[]>([]);
 
-  // Shared threat sync store (Globe ↔ Radar)
+  // Shared threat sync store (Globe ↔ Radar) — Supabase realtime backed
   const interceptedIds = useThreatStore((s) => s.interceptedIds);
   const interceptedCount = useThreatStore((s) => s.interceptedCount);
   const interceptThreat = useThreatStore((s) => s.intercept);
   const registerMapping = useThreatStore((s) => s.registerMapping);
+  const liveThreats = useThreatStore((s) => s.liveThreats);
+  const addThreat = useThreatStore((s) => s.addThreat);
 
   // Filter out intercepted attacks so they vanish from the globe
   const visibleAttacks = useMemo(
