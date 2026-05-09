@@ -952,6 +952,36 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
         <div className="text-[7px] font-mono text-muted-foreground/70 mt-1">
           ▸ Click missile head to neutralize
         </div>
+        <div className="mt-2 pt-2 border-t border-border/40">
+          <div className="flex items-center justify-between text-[9px] font-mono">
+            <span className="text-muted-foreground">REALTIME FEED:</span>
+            <span className="text-emerald-400 font-bold flex items-center gap-1">
+              <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full animate-pulse" />
+              {liveThreats.length}
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              const origins = [
+                { lat: 55.75, lon: 37.62 }, { lat: 35.68, lon: 51.42 },
+                { lat: 39.04, lon: 125.76 }, { lat: 15.37, lon: 44.19 },
+              ];
+              const o = origins[Math.floor(Math.random() * origins.length)];
+              const priorities = ['low', 'medium', 'high', 'critical'] as const;
+              addThreat({
+                origin_lat: o.lat,
+                origin_lon: o.lon,
+                target_lat: currentLocation.lat,
+                target_lon: currentLocation.lng,
+                priority: priorities[Math.floor(Math.random() * priorities.length)],
+                eta_seconds: 60 + Math.floor(Math.random() * 600),
+              });
+            }}
+            className="mt-1 w-full text-[8px] font-mono px-2 py-1 rounded bg-emerald-500/10 border border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/20"
+          >
+            + INJECT LIVE THREAT
+          </button>
+        </div>
       </div>
 
       {/* Active Threats Panel */}
