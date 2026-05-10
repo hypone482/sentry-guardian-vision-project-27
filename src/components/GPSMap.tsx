@@ -126,6 +126,41 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
     };
   }, [watchId]);
 
+  // Reverse geocode current position (debounced)
+  useEffect(() => {
+    if (gpsStatus !== 'active') return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        setGeoLoading(true);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${gpsData.latitude}&lon=${gpsData.longitude}&zoom=16&addressdetails=1`,
+          { signal: ctrl.signal, headers: { 'Accept-Language': 'en' } },
+        );
+        if (!res.ok) throw new Error('geocode failed');
+        const j = await res.json();
+        const a = j.address || {};
+        setLocationDetails({
+          city: a.city || a.town || a.village || a.hamlet || a.suburb,
+          state: a.state || a.region,
+          country: a.country,
+          countryCode: (a.country_code || '').toUpperCase(),
+          road: a.road || a.pedestrian || a.neighbourhood,
+          postcode: a.postcode,
+          display: j.display_name,
+        });
+      } catch (_) {
+        /* offline / blocked — keep prior */
+      } finally {
+        setGeoLoading(false);
+      }
+    }, 1500);
+    return () => {
+      ctrl.abort();
+      clearTimeout(t);
+    };
+  }, [gpsStatus, Math.round(gpsData.latitude * 1000), Math.round(gpsData.longitude * 1000)]);
+
   // Auto-start GPS when active
   useEffect(() => {
     if (active && gpsStatus === 'idle') {
