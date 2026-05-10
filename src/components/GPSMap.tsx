@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2, Globe2 } from 'lucide-react';
+import { useThreatStore } from '@/stores/threatStore';
+
+interface LocationDetails {
+  city?: string;
+  state?: string;
+  country?: string;
+  countryCode?: string;
+  road?: string;
+  postcode?: string;
+  display?: string;
+}
 
 interface GPSData {
   latitude: number;
@@ -35,17 +46,34 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
     speed: 0
   });
   
-  const [markers, setMarkers] = useState<MapMarker[]>([
-    { id: '1', x: 50, y: 50, type: 'current', label: 'YOU' },
-    { id: '2', x: 70, y: 30, type: 'target', label: 'TGT-A' },
-    { id: '3', x: 25, y: 65, type: 'waypoint', label: 'WP-1' },
-    { id: '4', x: 80, y: 75, type: 'poi', label: 'BASE' },
+  const [staticMarkers] = useState<MapMarker[]>([
+    { id: 'self', x: 50, y: 50, type: 'current', label: 'YOU' },
+    { id: 'wp1', x: 25, y: 65, type: 'waypoint', label: 'WP-1' },
+    { id: 'base', x: 80, y: 75, type: 'poi', label: 'BASE' },
   ]);
 
   const [mapScale, setMapScale] = useState(1);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'active' | 'error'>('idle');
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
+  const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const liveThreats = useThreatStore((s) => s.liveThreats);
+
+  // Project lat/lon onto local map (~5km window centered on user)
+  const threatMarkers: MapMarker[] = useMemo(() => {
+    const span = 0.05; // ~5km
+    return liveThreats.slice(0, 12).map((t, i) => {
+      const dx = (t.target_lon - gpsData.longitude) / span;
+      const dy = (t.target_lat - gpsData.latitude) / span;
+      const x = Math.max(2, Math.min(98, 50 + dx * 50));
+      const y = Math.max(2, Math.min(98, 50 - dy * 50));
+      return { id: `threat-${t.id}`, x, y, type: 'target', label: `T-${i + 1}` };
+    });
+  }, [liveThreats, gpsData.latitude, gpsData.longitude]);
+
+  const markers = useMemo(() => [...staticMarkers, ...threatMarkers], [staticMarkers, threatMarkers]);
 
   // Request real GPS location
   const requestGPSLocation = useCallback(() => {
