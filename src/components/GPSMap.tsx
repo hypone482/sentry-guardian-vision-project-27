@@ -356,6 +356,52 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
         </div>
       </div>
 
+      {/* Detailed Location Panel (reverse geocoded) */}
+      <div className="absolute top-2 right-16 bg-card/90 backdrop-blur rounded border border-border p-2 max-w-[230px] text-[9px] font-mono">
+        <div className="flex items-center gap-1 mb-1">
+          <Globe2 className="w-3 h-3 text-cyan-400" />
+          <span className="text-cyan-400 font-display">MY LOCATION</span>
+          {geoLoading && <Loader2 className="w-2.5 h-2.5 animate-spin text-muted-foreground ml-auto" />}
+        </div>
+        {locationDetails ? (
+          <div className="space-y-0.5">
+            {locationDetails.road && (
+              <div className="text-foreground truncate">📍 {locationDetails.road}</div>
+            )}
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">CITY:</span>
+              <span className="text-foreground truncate">{locationDetails.city || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">REGION:</span>
+              <span className="text-foreground truncate">{locationDetails.state || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">COUNTRY:</span>
+              <span className="text-emerald-400">
+                {locationDetails.country || '—'}{' '}
+                {locationDetails.countryCode && <span className="text-muted-foreground">[{locationDetails.countryCode}]</span>}
+              </span>
+            </div>
+            {locationDetails.postcode && (
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">POSTAL:</span>
+                <span className="text-foreground">{locationDetails.postcode}</span>
+              </div>
+            )}
+            {locationDetails.display && (
+              <div className="text-[8px] text-muted-foreground/80 mt-1 leading-tight line-clamp-2">
+                {locationDetails.display}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-muted-foreground text-[9px]">
+            {gpsStatus === 'active' ? 'Resolving address…' : 'Awaiting GPS lock'}
+          </div>
+        )}
+      </div>
+
       {/* Status bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-card/80 backdrop-blur border-t border-border p-2">
         <div className="flex items-center justify-between text-[9px] font-mono">
