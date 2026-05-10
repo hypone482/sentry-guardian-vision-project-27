@@ -13,6 +13,7 @@ import Globe3D from '@/components/Globe3D';
 import JoystickControl from '@/components/JoystickControl';
 import SystemData from '@/components/SystemData';
 import EventLog, { LogEvent } from '@/components/EventLog';
+import AuditTrail from '@/components/AuditTrail';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 interface PanelConfig {
   id: string;
@@ -83,6 +84,11 @@ const DEFAULT_PANELS: PanelConfig[] = [{
 }, {
   id: 'events',
   title: 'Events',
+  visible: true,
+  column: 'left'
+}, {
+  id: 'audit',
+  title: 'Intercept Audit',
   visible: true,
   column: 'left'
 }];
@@ -172,6 +178,8 @@ const LayoutContainer: React.FC<LayoutContainerProps> = ({
         return <SystemData detectionData={detectionData} />;
       case 'events':
         return <EventLog events={logEvents} />;
+      case 'audit':
+        return <AuditTrail />;
       default:
         return null;
     }
