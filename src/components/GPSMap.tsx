@@ -1,6 +1,17 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2 } from 'lucide-react';
+import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2, Globe2 } from 'lucide-react';
+import { useThreatStore } from '@/stores/threatStore';
+
+interface LocationDetails {
+  city?: string;
+  state?: string;
+  country?: string;
+  countryCode?: string;
+  road?: string;
+  postcode?: string;
+  display?: string;
+}
 
 interface GPSData {
   latitude: number;
@@ -35,17 +46,34 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
     speed: 0
   });
   
-  const [markers, setMarkers] = useState<MapMarker[]>([
-    { id: '1', x: 50, y: 50, type: 'current', label: 'YOU' },
-    { id: '2', x: 70, y: 30, type: 'target', label: 'TGT-A' },
-    { id: '3', x: 25, y: 65, type: 'waypoint', label: 'WP-1' },
-    { id: '4', x: 80, y: 75, type: 'poi', label: 'BASE' },
+  const [staticMarkers] = useState<MapMarker[]>([
+    { id: 'self', x: 50, y: 50, type: 'current', label: 'YOU' },
+    { id: 'wp1', x: 25, y: 65, type: 'waypoint', label: 'WP-1' },
+    { id: 'base', x: 80, y: 75, type: 'poi', label: 'BASE' },
   ]);
 
   const [mapScale, setMapScale] = useState(1);
   const [gpsStatus, setGpsStatus] = useState<'idle' | 'loading' | 'active' | 'error'>('idle');
   const [gpsError, setGpsError] = useState<string | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
+  const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null);
+  const [geoLoading, setGeoLoading] = useState(false);
+
+  const liveThreats = useThreatStore((s) => s.liveThreats);
+
+  // Project lat/lon onto local map (~5km window centered on user)
+  const threatMarkers: MapMarker[] = useMemo(() => {
+    const span = 0.05; // ~5km
+    return liveThreats.slice(0, 12).map((t, i) => {
+      const dx = (t.target_lon - gpsData.longitude) / span;
+      const dy = (t.target_lat - gpsData.latitude) / span;
+      const x = Math.max(2, Math.min(98, 50 + dx * 50));
+      const y = Math.max(2, Math.min(98, 50 - dy * 50));
+      return { id: `threat-${t.id}`, x, y, type: 'target', label: `T-${i + 1}` };
+    });
+  }, [liveThreats, gpsData.latitude, gpsData.longitude]);
+
+  const markers = useMemo(() => [...staticMarkers, ...threatMarkers], [staticMarkers, threatMarkers]);
 
   // Request real GPS location
   const requestGPSLocation = useCallback(() => {
@@ -97,6 +125,41 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
       }
     };
   }, [watchId]);
+
+  // Reverse geocode current position (debounced)
+  useEffect(() => {
+    if (gpsStatus !== 'active') return;
+    const ctrl = new AbortController();
+    const t = setTimeout(async () => {
+      try {
+        setGeoLoading(true);
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${gpsData.latitude}&lon=${gpsData.longitude}&zoom=16&addressdetails=1`,
+          { signal: ctrl.signal, headers: { 'Accept-Language': 'en' } },
+        );
+        if (!res.ok) throw new Error('geocode failed');
+        const j = await res.json();
+        const a = j.address || {};
+        setLocationDetails({
+          city: a.city || a.town || a.village || a.hamlet || a.suburb,
+          state: a.state || a.region,
+          country: a.country,
+          countryCode: (a.country_code || '').toUpperCase(),
+          road: a.road || a.pedestrian || a.neighbourhood,
+          postcode: a.postcode,
+          display: j.display_name,
+        });
+      } catch (_) {
+        /* offline / blocked — keep prior */
+      } finally {
+        setGeoLoading(false);
+      }
+    }, 1500);
+    return () => {
+      ctrl.abort();
+      clearTimeout(t);
+    };
+  }, [gpsStatus, Math.round(gpsData.latitude * 1000), Math.round(gpsData.longitude * 1000)]);
 
   // Auto-start GPS when active
   useEffect(() => {
@@ -291,6 +354,52 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
             <span className="text-emerald-400">±{gpsData.accuracy}m</span>
           </div>
         </div>
+      </div>
+
+      {/* Detailed Location Panel (reverse geocoded) */}
+      <div className="absolute top-2 right-16 bg-card/90 backdrop-blur rounded border border-border p-2 max-w-[230px] text-[9px] font-mono">
+        <div className="flex items-center gap-1 mb-1">
+          <Globe2 className="w-3 h-3 text-cyan-400" />
+          <span className="text-cyan-400 font-display">MY LOCATION</span>
+          {geoLoading && <Loader2 className="w-2.5 h-2.5 animate-spin text-muted-foreground ml-auto" />}
+        </div>
+        {locationDetails ? (
+          <div className="space-y-0.5">
+            {locationDetails.road && (
+              <div className="text-foreground truncate">📍 {locationDetails.road}</div>
+            )}
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">CITY:</span>
+              <span className="text-foreground truncate">{locationDetails.city || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">REGION:</span>
+              <span className="text-foreground truncate">{locationDetails.state || '—'}</span>
+            </div>
+            <div className="flex justify-between gap-2">
+              <span className="text-muted-foreground">COUNTRY:</span>
+              <span className="text-emerald-400">
+                {locationDetails.country || '—'}{' '}
+                {locationDetails.countryCode && <span className="text-muted-foreground">[{locationDetails.countryCode}]</span>}
+              </span>
+            </div>
+            {locationDetails.postcode && (
+              <div className="flex justify-between gap-2">
+                <span className="text-muted-foreground">POSTAL:</span>
+                <span className="text-foreground">{locationDetails.postcode}</span>
+              </div>
+            )}
+            {locationDetails.display && (
+              <div className="text-[8px] text-muted-foreground/80 mt-1 leading-tight line-clamp-2">
+                {locationDetails.display}
+              </div>
+            )}
+          </div>
+        ) : (
+          <div className="text-muted-foreground text-[9px]">
+            {gpsStatus === 'active' ? 'Resolving address…' : 'Awaiting GPS lock'}
+          </div>
+        )}
       </div>
 
       {/* Status bar */}
