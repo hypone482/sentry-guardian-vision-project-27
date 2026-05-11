@@ -218,15 +218,31 @@ const Earth = ({ userLocation, heading, accuracy, hasFix }: { userLocation: { la
       />
 
       {/* User location marker */}
-      <UserMarker lat={userLocation.lat} lng={userLocation.lng} />
+      <UserMarker lat={userLocation.lat} lng={userLocation.lng} heading={heading} accuracy={accuracy} hasFix={hasFix} />
     </group>
   );
 };
-const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
+const UserMarker = ({ lat, lng, heading, accuracy, hasFix }: { lat: number; lng: number; heading: number; accuracy: number; hasFix: boolean }) => {
   const position = latLngToVector3(lat, lng, 2.06);
   const pulseRef = useRef<THREE.Mesh>(null);
   const outerPulseRef = useRef<THREE.Mesh>(null);
   const beamRef = useRef<THREE.Mesh>(null);
+  const arrowRef = useRef<THREE.Group>(null);
+
+  // Orient marker so +Y points "up" away from globe center, with rotation around it for heading
+  const orientation = useMemo(() => {
+    const up = position.clone().normalize();
+    const quat = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(0, 1, 0), up);
+    return quat;
+  }, [position]);
+
+  // Accuracy ring radius — meters → globe units (Earth radius 2 = 6371km)
+  // Clamp so it stays visible; min 0.02, max 0.4
+  const accuracyRadius = useMemo(() => {
+    const km = (accuracy || 0) / 1000;
+    const r = (km / 6371) * 2 * 8; // exaggerate ×8 for visibility
+    return Math.min(0.4, Math.max(0.02, r));
+  }, [accuracy]);
 
   useFrame((state) => {
     const time = state.clock.elapsedTime;
@@ -244,38 +260,68 @@ const UserMarker = ({ lat, lng }: { lat: number; lng: number }) => {
       const mat = beamRef.current.material as THREE.MeshBasicMaterial;
       mat.opacity = 0.4 + Math.sin(time * 3) * 0.2;
     }
+    if (arrowRef.current) {
+      // rotate around local Y (which is "up" off the globe surface) for heading
+      arrowRef.current.rotation.y = -((heading || 0) * Math.PI) / 180;
+    }
   });
 
+  const markerColor = hasFix ? '#00ff88' : '#888888';
+
   return (
-    <group position={position}>
+    <group position={position} quaternion={orientation}>
       {/* Defense shield effect */}
-      <mesh ref={outerPulseRef}>
+      <mesh ref={outerPulseRef} rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.12, 0.15, 32]} />
-        <meshBasicMaterial color="#00ff88" transparent opacity={0.3} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={markerColor} transparent opacity={0.3} side={THREE.DoubleSide} />
       </mesh>
-      
+
+      {/* Live accuracy ring (±meters) */}
+      <mesh rotation={[Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[accuracyRadius, accuracyRadius + 0.008, 48]} />
+        <meshBasicMaterial color="#22d3ee" transparent opacity={0.55} side={THREE.DoubleSide} />
+      </mesh>
+
       {/* Main marker */}
       <mesh>
         <sphereGeometry args={[0.06, 16, 16]} />
-        <meshStandardMaterial color="#00ff88" emissive="#00ff88" emissiveIntensity={1} />
+        <meshStandardMaterial color={markerColor} emissive={markerColor} emissiveIntensity={1} />
       </mesh>
-      
+
       {/* Pulse ring */}
-      <mesh ref={pulseRef}>
+      <mesh ref={pulseRef} rotation={[Math.PI / 2, 0, 0]}>
         <ringGeometry args={[0.07, 0.09, 32]} />
-        <meshBasicMaterial color="#00ff88" transparent opacity={0.7} side={THREE.DoubleSide} />
+        <meshBasicMaterial color={markerColor} transparent opacity={0.7} side={THREE.DoubleSide} />
       </mesh>
-      
+
+      {/* Heading arrow — rotates around surface-normal */}
+      <group ref={arrowRef}>
+        {/* arrow shaft pointing along local +Z (north on the tangent plane) */}
+        <mesh position={[0, 0.02, 0.13]} rotation={[Math.PI / 2, 0, 0]}>
+          <coneGeometry args={[0.035, 0.1, 12]} />
+          <meshStandardMaterial color="#ffcc00" emissive="#ffcc00" emissiveIntensity={1.2} />
+        </mesh>
+        <mesh position={[0, 0.02, 0.06]} rotation={[Math.PI / 2, 0, 0]}>
+          <cylinderGeometry args={[0.012, 0.012, 0.08, 8]} />
+          <meshStandardMaterial color="#ffcc00" emissive="#ffcc00" emissiveIntensity={0.8} />
+        </mesh>
+      </group>
+
       {/* Vertical beam */}
       <mesh ref={beamRef} position={[0, 0.15, 0]}>
         <cylinderGeometry args={[0.01, 0.01, 0.3, 8]} />
-        <meshBasicMaterial color="#00ff88" transparent opacity={0.4} />
+        <meshBasicMaterial color={markerColor} transparent opacity={0.4} />
       </mesh>
-      
-      <Html distanceFactor={8}>
+
+      <Html distanceFactor={8} position={[0, 0.35, 0]}>
         <div className="bg-emerald-900/90 px-2 py-1 rounded text-[10px] font-mono text-emerald-400 whitespace-nowrap border border-emerald-500/50 shadow-lg shadow-emerald-500/20">
-          <div className="font-bold">YOUR LOCATION</div>
-          <div className="text-[8px] text-emerald-300/70">ETHIOPIA - PROTECTED</div>
+          <div className="font-bold">{hasFix ? 'YOUR LOCATION' : 'AWAITING GPS'}</div>
+          <div className="text-[8px] text-emerald-300/70">
+            {lat.toFixed(4)}°, {lng.toFixed(4)}°
+          </div>
+          <div className="text-[8px] text-cyan-300/80">
+            HDG {Math.round(heading || 0)}° · ±{Math.round(accuracy || 0)}m
+          </div>
         </div>
       </Html>
     </group>
