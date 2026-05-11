@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2, Globe2, Activity, Mountain, Gauge, Crosshair, Clock } from 'lucide-react';
 import { useThreatStore } from '@/stores/threatStore';
+import { useGPSStore } from '@/stores/gpsStore';
 
 interface LocationDetails {
   city?: string;
@@ -98,14 +99,16 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
       (position) => {
         const { latitude, longitude, altitude, accuracy, heading, speed } = position.coords;
         
-        setGpsData({
+        const fix = {
           latitude,
           longitude,
           altitude: altitude || 0,
           accuracy: accuracy || 5,
           heading: heading || 0,
-          speed: speed || 0
-        });
+          speed: speed || 0,
+        };
+        setGpsData(fix);
+        useGPSStore.getState().setFix(fix);
         
         setGpsStatus('active');
         setLastFix(Date.now());
