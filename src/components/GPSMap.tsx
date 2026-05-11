@@ -365,13 +365,61 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
         </div>
       </div>
 
-      {/* Detailed Location Panel (reverse geocoded) */}
-      <div className="absolute top-2 right-16 bg-card/90 backdrop-blur rounded border border-border p-2 max-w-[230px] text-[9px] font-mono">
+      {/* Detailed Location Panel (reverse geocoded + live telemetry) */}
+      <div className="absolute top-2 right-16 bg-card/90 backdrop-blur rounded border border-border p-2 max-w-[260px] text-[9px] font-mono">
         <div className="flex items-center gap-1 mb-1">
           <Globe2 className="w-3 h-3 text-cyan-400" />
           <span className="text-cyan-400 font-display">MY LOCATION</span>
           {geoLoading && <Loader2 className="w-2.5 h-2.5 animate-spin text-muted-foreground ml-auto" />}
+          {!geoLoading && lastFix && (
+            <span className="ml-auto flex items-center gap-1 text-[8px] text-muted-foreground">
+              <Clock className="w-2.5 h-2.5" />
+              {Math.max(0, Math.floor((Date.now() - lastFix) / 1000))}s ago
+            </span>
+          )}
         </div>
+
+        {/* Live telemetry grid */}
+        <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 mb-1.5 pb-1.5 border-b border-border/40">
+          <div className="flex items-center gap-1">
+            <Crosshair className="w-2.5 h-2.5 text-emerald-400" />
+            <span className="text-muted-foreground">LAT</span>
+          </div>
+          <span className="text-emerald-400 text-right">{gpsData.latitude.toFixed(6)}°</span>
+
+          <div className="flex items-center gap-1">
+            <Crosshair className="w-2.5 h-2.5 text-emerald-400" />
+            <span className="text-muted-foreground">LON</span>
+          </div>
+          <span className="text-emerald-400 text-right">{gpsData.longitude.toFixed(6)}°</span>
+
+          <div className="flex items-center gap-1">
+            <Mountain className="w-2.5 h-2.5 text-amber-400" />
+            <span className="text-muted-foreground">ALT</span>
+          </div>
+          <span className="text-amber-400 text-right">{gpsData.altitude.toFixed(1)} m</span>
+
+          <div className="flex items-center gap-1">
+            <Activity className="w-2.5 h-2.5 text-fuchsia-400" />
+            <span className="text-muted-foreground">ACC</span>
+          </div>
+          <span className="text-fuchsia-400 text-right">±{gpsData.accuracy.toFixed(1)} m</span>
+
+          <div className="flex items-center gap-1">
+            <Gauge className="w-2.5 h-2.5 text-sky-400" />
+            <span className="text-muted-foreground">SPD</span>
+          </div>
+          <span className="text-sky-400 text-right">
+            {gpsData.speed.toFixed(2)} m/s · {(gpsData.speed * 3.6).toFixed(1)} km/h
+          </span>
+
+          <div className="flex items-center gap-1">
+            <Compass className="w-2.5 h-2.5 text-cyan-400" />
+            <span className="text-muted-foreground">HDG</span>
+          </div>
+          <span className="text-cyan-400 text-right">{gpsData.heading.toFixed(1)}°</span>
+        </div>
+
         {locationDetails ? (
           <div className="space-y-0.5">
             {locationDetails.road && (
@@ -410,6 +458,7 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
           </div>
         )}
       </div>
+
 
       {/* Status bar */}
       <div className="absolute bottom-0 left-0 right-0 bg-card/80 backdrop-blur border-t border-border p-2">
