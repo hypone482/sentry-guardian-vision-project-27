@@ -99,16 +99,21 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
       (position) => {
         const { latitude, longitude, altitude, accuracy, heading, speed } = position.coords;
         
-        setGpsData({
+        const fix = {
           latitude,
           longitude,
           altitude: altitude || 0,
           accuracy: accuracy || 5,
           heading: heading || 0,
-          speed: speed || 0
-        });
+          speed: speed || 0,
+        };
+        setGpsData(fix);
+        useGPSStore.getState().setFix(fix);
         
         setGpsStatus('active');
+        setLastFix(Date.now());
+        onLocationUpdate?.(latitude, longitude);
+      },
         setLastFix(Date.now());
         onLocationUpdate?.(latitude, longitude);
       },
