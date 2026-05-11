@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2, Globe2, Activity, Mountain, Gauge, Crosshair, Clock } from 'lucide-react';
 import { useThreatStore } from '@/stores/threatStore';
+import { useGPSStore } from '@/stores/gpsStore';
 
 interface LocationDetails {
   city?: string;
