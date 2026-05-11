@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { cn } from '@/lib/utils';
-import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2, Globe2 } from 'lucide-react';
+import { MapPin, Navigation, Compass, Locate, AlertCircle, Loader2, Globe2, Activity, Mountain, Gauge, Crosshair, Clock } from 'lucide-react';
 import { useThreatStore } from '@/stores/threatStore';
 
 interface LocationDetails {
@@ -58,6 +58,14 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
   const [watchId, setWatchId] = useState<number | null>(null);
   const [locationDetails, setLocationDetails] = useState<LocationDetails | null>(null);
   const [geoLoading, setGeoLoading] = useState(false);
+  const [lastFix, setLastFix] = useState<number | null>(null);
+  const [tick, setTick] = useState(0);
+
+  // re-render every second so "last fix" age stays live
+  useEffect(() => {
+    const i = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(i);
+  }, []);
 
   const liveThreats = useThreatStore((s) => s.liveThreats);
 
@@ -100,6 +108,7 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
         });
         
         setGpsStatus('active');
+        setLastFix(Date.now());
         onLocationUpdate?.(latitude, longitude);
       },
       (error) => {
