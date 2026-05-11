@@ -583,9 +583,20 @@ const GlobeLoader = () => (
 );
 
 const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, className }) => {
-  // Default to Ethiopia if no GPS location
-  const defaultLocation = { lat: 9.0192, lng: 38.7525 }; // Addis Ababa, Ethiopia
-  const currentLocation = userLocation || defaultLocation;
+  // Live GPS telemetry (written by GPSMap)
+  const gpsLat = useGPSStore((s) => s.latitude);
+  const gpsLng = useGPSStore((s) => s.longitude);
+  const gpsHeading = useGPSStore((s) => s.heading);
+  const gpsAccuracy = useGPSStore((s) => s.accuracy);
+  const gpsHasFix = useGPSStore((s) => s.hasFix);
+
+  // Default to Ethiopia if no GPS fix and no prop override
+  const defaultLocation = { lat: 9.0192, lng: 38.7525 };
+  const currentLocation = userLocation
+    ? userLocation
+    : gpsHasFix
+    ? { lat: gpsLat, lng: gpsLng }
+    : defaultLocation;
   
   const [attacks, setAttacks] = useState<Attack[]>([]);
   const [selectedAttack, setSelectedAttack] = useState<Attack | null>(null);
