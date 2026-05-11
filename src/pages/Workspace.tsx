@@ -1,12 +1,29 @@
 import React, { useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Split, Maximize2, Download, LayoutGrid, Upload } from 'lucide-react';
+import { ArrowLeft, Plus, Folder, FileText, Settings, Clock, MapPin, CheckCircle, Maximize2, Minimize2, Download, Upload, X, ChevronLeft, ChevronRight, GripVertical } from 'lucide-react';
 import OfflineIndicator from '@/components/OfflineIndicator';
 import { useOfflineStorage } from '@/hooks/useOfflineStorage';
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from '@/components/ui/resizable';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { toast } from 'sonner';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  KeyboardSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  horizontalListSortingStrategy,
+  arrayMove,
+  useSortable,
+  sortableKeyboardCoordinates,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 interface MissionLog {
   id: string;
@@ -25,30 +42,98 @@ interface Waypoint {
   timestamp: number;
 }
 
+type PaneType = 'missions' | 'waypoints' | 'notes';
+
+interface Pane {
+  id: string;
+  type: PaneType;
+  minimized: boolean;
+}
+
+const PANE_LABELS: Record<PaneType, string> = {
+  missions: 'Mission Logs',
+  waypoints: 'Waypoints',
+  notes: 'Field Notes',
+};
+
 const Workspace: React.FC = () => {
   const [missionLogs, setMissionLogs] = useOfflineStorage<MissionLog[]>({
     key: 'missionLogs',
-    defaultValue: []
+    defaultValue: [],
   });
-  
+
   const [waypoints, setWaypoints] = useOfflineStorage<Waypoint[]>({
     key: 'waypoints',
-    defaultValue: []
+    defaultValue: [],
   });
 
-  const [splitMode, setSplitMode] = useState<'horizontal' | 'vertical' | 'single' | 'triple'>('horizontal');
-  const [leftPanel, setLeftPanel] = useState<'missions' | 'waypoints' | 'notes'>('missions');
-  const [rightPanel, setRightPanel] = useState<'waypoints' | 'notes' | 'missions'>('waypoints');
-  const [centerPanel, setCenterPanel] = useState<'missions' | 'waypoints' | 'notes'>('notes');
   const [notes, setNotes] = useOfflineStorage<string>({
     key: 'workspaceNotes',
-    defaultValue: ''
+    defaultValue: '',
   });
 
+  const [panes, setPanes] = useOfflineStorage<Pane[]>({
+    key: 'workspacePanes_v2',
+    defaultValue: [
+      { id: 'p1', type: 'missions', minimized: false },
+      { id: 'p2', type: 'waypoints', minimized: false },
+    ],
+  });
+
+  const [maximizedId, setMaximizedId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // ------------ pane management ------------
+  const addPane = (type: PaneType = 'notes') => {
+    if (panes.length >= 6) {
+      toast.warning('Pane limit reached', { description: 'Maximum of 6 panes' });
+      return;
+    }
+    setPanes([
+      ...panes,
+      { id: `p_${Date.now().toString(36)}`, type, minimized: false },
+    ]);
+  };
+
+  const removePane = (id: string) => {
+    setPanes(panes.filter((p) => p.id !== id));
+    if (maximizedId === id) setMaximizedId(null);
+  };
+
+  const toggleMinimize = (id: string) => {
+    setPanes(panes.map((p) => (p.id === id ? { ...p, minimized: !p.minimized } : p)));
+    if (maximizedId === id) setMaximizedId(null);
+  };
+
+  const setPaneType = (id: string, type: PaneType) => {
+    setPanes(panes.map((p) => (p.id === id ? { ...p, type } : p)));
+  };
+
+  const movePane = (id: string, dir: -1 | 1) => {
+    const idx = panes.findIndex((p) => p.id === id);
+    const next = idx + dir;
+    if (idx < 0 || next < 0 || next >= panes.length) return;
+    setPanes(arrayMove(panes, idx, next));
+  };
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      const oldIndex = panes.findIndex((p) => p.id === active.id);
+      const newIndex = panes.findIndex((p) => p.id === over.id);
+      if (oldIndex >= 0 && newIndex >= 0) setPanes(arrayMove(panes, oldIndex, newIndex));
+    }
+  };
+
+  // ------------ data import / export ------------
   const exportData = (type: 'missions' | 'waypoints' | 'notes' | 'all') => {
     let data: any;
     let filename: string;
-    
+
     if (type === 'missions') {
       data = missionLogs;
       filename = `missions_${new Date().toISOString().split('T')[0]}.json`;
@@ -63,10 +148,11 @@ const Workspace: React.FC = () => {
       filename = `workspace_export_${new Date().toISOString().split('T')[0]}.json`;
     }
 
-    const blob = type === 'notes' 
-      ? new Blob([data], { type: 'text/plain' })
-      : new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    
+    const blob =
+      type === 'notes'
+        ? new Blob([data], { type: 'text/plain' })
+        : new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
@@ -75,7 +161,7 @@ const Workspace: React.FC = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     toast.success('Export Complete', { description: `${filename} downloaded` });
   };
 
@@ -84,45 +170,34 @@ const Workspace: React.FC = () => {
   const handleImport = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
         const data = JSON.parse(content);
-
-        // Check if it's a full workspace export
         if (data.missionLogs && data.waypoints && data.notes !== undefined) {
           setMissionLogs(data.missionLogs);
           setWaypoints(data.waypoints);
           setNotes(data.notes);
-          toast.success('Import Complete', { description: 'All workspace data imported successfully' });
-        }
-        // Check if it's mission logs array
-        else if (Array.isArray(data) && data.length > 0 && data[0].status !== undefined) {
-          setMissionLogs(prev => [...data, ...prev]);
-          toast.success('Import Complete', { description: `${data.length} mission logs imported` });
-        }
-        // Check if it's waypoints array
-        else if (Array.isArray(data) && data.length > 0 && data[0].lat !== undefined) {
-          setWaypoints(prev => [...prev, ...data]);
-          toast.success('Import Complete', { description: `${data.length} waypoints imported` });
-        }
-        else {
+          toast.success('Import Complete', { description: 'All workspace data imported' });
+        } else if (Array.isArray(data) && data.length && data[0].status !== undefined) {
+          setMissionLogs((prev) => [...data, ...prev]);
+          toast.success('Import Complete', { description: `${data.length} mission logs` });
+        } else if (Array.isArray(data) && data.length && data[0].lat !== undefined) {
+          setWaypoints((prev) => [...prev, ...data]);
+          toast.success('Import Complete', { description: `${data.length} waypoints` });
+        } else {
           toast.error('Import Failed', { description: 'Unrecognized file format' });
         }
-      } catch (error) {
+      } catch {
         toast.error('Import Failed', { description: 'Invalid JSON file' });
       }
     };
     reader.readAsText(file);
-    
-    // Reset input so same file can be imported again
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
+  // ------------ data mutations ------------
   const addMissionLog = () => {
     const newLog: MissionLog = {
       id: Math.random().toString(36).substring(2, 9),
@@ -130,7 +205,7 @@ const Workspace: React.FC = () => {
       description: 'New mission entry - click to edit',
       timestamp: Date.now(),
       status: 'pending',
-      priority: 'medium'
+      priority: 'medium',
     };
     setMissionLogs([newLog, ...missionLogs]);
   };
@@ -141,46 +216,42 @@ const Workspace: React.FC = () => {
       name: `Waypoint ${waypoints.length + 1}`,
       lat: 9.0 + Math.random() * 0.1,
       lng: 38.75 + Math.random() * 0.1,
-      timestamp: Date.now()
+      timestamp: Date.now(),
     };
     setWaypoints([...waypoints, newWaypoint]);
   };
 
   const updateLogStatus = (id: string, status: MissionLog['status']) => {
-    setMissionLogs(missionLogs.map(log => 
-      log.id === id ? { ...log, status } : log
-    ));
+    setMissionLogs(missionLogs.map((log) => (log.id === id ? { ...log, status } : log)));
   };
 
-  const deleteLog = (id: string) => {
-    setMissionLogs(missionLogs.filter(log => log.id !== id));
-  };
+  const deleteLog = (id: string) =>
+    setMissionLogs(missionLogs.filter((log) => log.id !== id));
+  const deleteWaypoint = (id: string) =>
+    setWaypoints(waypoints.filter((wp) => wp.id !== id));
 
-  const deleteWaypoint = (id: string) => {
-    setWaypoints(waypoints.filter(wp => wp.id !== id));
-  };
-
-  const renderPanelContent = (panel: 'missions' | 'waypoints' | 'notes') => {
+  // ------------ pane content ------------
+  const renderPanelContent = (panel: PaneType) => {
     switch (panel) {
       case 'missions':
         return (
           <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-sentry-primary flex items-center gap-2">
-                <FileText className="h-5 w-5" />
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-sentry-primary flex items-center gap-2">
+                <FileText className="h-4 w-4" />
                 Mission Logs
               </h2>
               <div className="flex gap-1">
                 <button
                   onClick={() => exportData('missions')}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent"
                   title="Export Missions"
                 >
                   <Download className="h-3 w-3" />
                 </button>
                 <button
                   onClick={addMissionLog}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent"
                 >
                   <Plus className="h-3 w-3" /> Add
                 </button>
@@ -191,26 +262,28 @@ const Workspace: React.FC = () => {
                 {missionLogs.length === 0 ? (
                   <p className="text-sentry-text/50 text-sm italic">No mission logs yet</p>
                 ) : (
-                  missionLogs.map(log => (
+                  missionLogs.map((log) => (
                     <div
                       key={log.id}
                       className={cn(
-                        "p-3 rounded border transition-colors",
-                        log.status === 'completed' && "border-green-500/30 bg-green-500/5",
-                        log.status === 'active' && "border-sentry-primary/30 bg-sentry-primary/5",
-                        log.status === 'pending' && "border-yellow-500/30 bg-yellow-500/5"
+                        'p-3 rounded border transition-colors',
+                        log.status === 'completed' && 'border-green-500/30 bg-green-500/5',
+                        log.status === 'active' && 'border-sentry-primary/30 bg-sentry-primary/5',
+                        log.status === 'pending' && 'border-yellow-500/30 bg-yellow-500/5',
                       )}
                     >
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
                             <span className="font-medium text-sentry-text">{log.title}</span>
-                            <span className={cn(
-                              "text-[10px] px-1.5 py-0.5 rounded uppercase",
-                              log.priority === 'high' && "bg-red-500/20 text-red-400",
-                              log.priority === 'medium' && "bg-yellow-500/20 text-yellow-400",
-                              log.priority === 'low' && "bg-green-500/20 text-green-400"
-                            )}>
+                            <span
+                              className={cn(
+                                'text-[10px] px-1.5 py-0.5 rounded uppercase',
+                                log.priority === 'high' && 'bg-red-500/20 text-red-400',
+                                log.priority === 'medium' && 'bg-yellow-500/20 text-yellow-400',
+                                log.priority === 'low' && 'bg-green-500/20 text-green-400',
+                              )}
+                            >
                               {log.priority}
                             </span>
                           </div>
@@ -223,7 +296,9 @@ const Workspace: React.FC = () => {
                         <div className="flex items-center gap-1">
                           <select
                             value={log.status}
-                            onChange={(e) => updateLogStatus(log.id, e.target.value as MissionLog['status'])}
+                            onChange={(e) =>
+                              updateLogStatus(log.id, e.target.value as MissionLog['status'])
+                            }
                             className="text-[10px] bg-transparent border border-border/50 rounded px-1 py-0.5 text-sentry-text"
                           >
                             <option value="pending">Pending</option>
@@ -249,22 +324,22 @@ const Workspace: React.FC = () => {
       case 'waypoints':
         return (
           <div className="h-full flex flex-col">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-semibold text-sentry-primary flex items-center gap-2">
-                <MapPin className="h-5 w-5" />
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-base font-semibold text-sentry-primary flex items-center gap-2">
+                <MapPin className="h-4 w-4" />
                 Waypoints
               </h2>
               <div className="flex gap-1">
                 <button
                   onClick={() => exportData('waypoints')}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent"
                   title="Export Waypoints"
                 >
                   <Download className="h-3 w-3" />
                 </button>
                 <button
                   onClick={addWaypoint}
-                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent transition-colors"
+                  className="flex items-center gap-1 px-2 py-1 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-accent"
                 >
                   <Plus className="h-3 w-3" /> Add
                 </button>
@@ -311,8 +386,8 @@ const Workspace: React.FC = () => {
       case 'notes':
         return (
           <div className="h-full flex flex-col">
-            <h2 className="text-lg font-semibold text-sentry-primary flex items-center gap-2 mb-4">
-              <Folder className="h-5 w-5" />
+            <h2 className="text-base font-semibold text-sentry-primary flex items-center gap-2 mb-3">
+              <Folder className="h-4 w-4" />
               Field Notes
             </h2>
             <textarea
@@ -330,29 +405,129 @@ const Workspace: React.FC = () => {
     }
   };
 
+  // ------------ pane wrapper (header + sortable) ------------
+  const SortablePane: React.FC<{ pane: Pane; index: number; total: number }> = ({
+    pane,
+    index,
+    total,
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+      useSortable({ id: pane.id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          'sentry-panel h-full rounded-lg flex flex-col overflow-hidden',
+          isDragging && 'opacity-60 ring-2 ring-sentry-primary/50',
+        )}
+      >
+        <PaneHeader pane={pane} index={index} total={total} dragHandleProps={{ ...attributes, ...listeners }} />
+        <div className="flex-1 p-3 overflow-hidden">{renderPanelContent(pane.type)}</div>
+      </div>
+    );
+  };
+
+  const PaneHeader: React.FC<{
+    pane: Pane;
+    index: number;
+    total: number;
+    dragHandleProps?: any;
+  }> = ({ pane, index, total, dragHandleProps }) => (
+    <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-border/40 bg-card/40">
+      <div className="flex items-center gap-1 min-w-0">
+        <button
+          {...dragHandleProps}
+          className="p-1 cursor-move text-muted-foreground hover:text-sentry-primary"
+          title="Drag to reorder"
+        >
+          <GripVertical className="h-3.5 w-3.5" />
+        </button>
+        <select
+          value={pane.type}
+          onChange={(e) => setPaneType(pane.id, e.target.value as PaneType)}
+          className="text-[11px] bg-transparent border border-border/50 rounded px-1 py-0.5 text-sentry-primary font-display uppercase tracking-wider"
+        >
+          {(Object.keys(PANE_LABELS) as PaneType[]).map((k) => (
+            <option key={k} value={k}>
+              {PANE_LABELS[k]}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="flex items-center gap-0.5">
+        <button
+          onClick={() => movePane(pane.id, -1)}
+          disabled={index === 0}
+          className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Move left"
+        >
+          <ChevronLeft className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => movePane(pane.id, 1)}
+          disabled={index === total - 1}
+          className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary disabled:opacity-30 disabled:cursor-not-allowed"
+          title="Move right"
+        >
+          <ChevronRight className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => toggleMinimize(pane.id)}
+          className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary"
+          title="Minimize"
+        >
+          <Minimize2 className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => setMaximizedId(maximizedId === pane.id ? null : pane.id)}
+          className="p-1 rounded hover:bg-sentry-accent/20 text-muted-foreground hover:text-sentry-accent"
+          title="Maximize"
+        >
+          <Maximize2 className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => removePane(pane.id)}
+          className="p-1 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400"
+          title="Close"
+        >
+          <X className="h-3 w-3" />
+        </button>
+      </div>
+    </div>
+  );
+
+  // ------------ render ------------
+  const visiblePanes = panes.filter((p) => !p.minimized);
+  const minimizedPanes = panes.filter((p) => p.minimized);
+  const maximizedPane = maximizedId ? panes.find((p) => p.id === maximizedId) : null;
+
   return (
     <div className="min-h-screen h-screen bg-sentry-background p-4 flex flex-col">
       <OfflineIndicator />
-      
+
       {/* Header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-4">
-          <Link 
-            to="/" 
+          <Link
+            to="/"
             className="flex items-center gap-2 text-sentry-accent hover:text-sentry-primary transition-colors text-sm"
           >
             <ArrowLeft className="h-4 w-4" />
             <span>Dashboard</span>
           </Link>
         </div>
-        <h1 
+        <h1
           style={{ fontFamily: 'Algerian, "Times New Roman", serif' }}
           className="text-2xl text-sentry-primary"
         >
           WORKSPACE
         </h1>
         <div className="flex items-center gap-2">
-          {/* Hidden file input for import */}
           <input
             ref={fileInputRef}
             type="file"
@@ -360,70 +535,22 @@ const Workspace: React.FC = () => {
             onChange={handleImport}
             className="hidden"
           />
-          
-          {/* Import Button */}
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-primary transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-primary"
           >
             <Upload className="h-4 w-4" />
             Import
           </button>
-          
-          {/* Export All Button */}
           <button
             onClick={() => exportData('all')}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded border border-sentry-accent/50 hover:bg-sentry-accent/20 text-sentry-accent"
           >
             <Download className="h-4 w-4" />
             Export All
           </button>
-          
-          {/* Split Mode Toggle */}
-          <div className="flex items-center gap-1 border border-border/50 rounded p-0.5">
-            <button
-              onClick={() => setSplitMode('single')}
-              className={cn(
-                "p-1.5 rounded transition-colors",
-                splitMode === 'single' ? "bg-sentry-primary/20 text-sentry-primary" : "text-muted-foreground hover:text-sentry-accent"
-              )}
-              title="Single View"
-            >
-              <Maximize2 className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setSplitMode('horizontal')}
-              className={cn(
-                "p-1.5 rounded transition-colors",
-                splitMode === 'horizontal' ? "bg-sentry-primary/20 text-sentry-primary" : "text-muted-foreground hover:text-sentry-accent"
-              )}
-              title="Dual Split"
-            >
-              <Split className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setSplitMode('triple')}
-              className={cn(
-                "p-1.5 rounded transition-colors",
-                splitMode === 'triple' ? "bg-sentry-primary/20 text-sentry-primary" : "text-muted-foreground hover:text-sentry-accent"
-              )}
-              title="Triple Split"
-            >
-              <LayoutGrid className="h-4 w-4" />
-            </button>
-            <button
-              onClick={() => setSplitMode('vertical')}
-              className={cn(
-                "p-1.5 rounded transition-colors rotate-90",
-                splitMode === 'vertical' ? "bg-sentry-primary/20 text-sentry-primary" : "text-muted-foreground hover:text-sentry-accent"
-              )}
-              title="Vertical Split"
-            >
-              <Split className="h-4 w-4" />
-            </button>
-          </div>
-          <Link 
-            to="/settings" 
+          <Link
+            to="/settings"
             className="text-sentry-accent hover:text-sentry-primary transition-colors p-1.5"
           >
             <Settings className="h-5 w-5" />
@@ -431,95 +558,74 @@ const Workspace: React.FC = () => {
         </div>
       </div>
 
-      {/* Panel Selectors */}
-      <div className="flex items-center gap-4 mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground">LEFT:</span>
-          <select
-            value={leftPanel}
-            onChange={(e) => setLeftPanel(e.target.value as any)}
-            className="text-xs bg-background border border-border/50 rounded px-2 py-1 text-sentry-text"
+      {/* Pane control bar */}
+      <div className="flex items-center justify-between mb-3 gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-[10px] text-muted-foreground font-mono">PANES:</span>
+          <span className="text-[10px] text-sentry-primary font-mono">
+            {visiblePanes.length} active{minimizedPanes.length > 0 && ` · ${minimizedPanes.length} min`}
+          </span>
+          <button
+            onClick={() => addPane('notes')}
+            className="flex items-center gap-1 px-2 py-1 text-[11px] rounded border border-sentry-primary/50 hover:bg-sentry-primary/20 text-sentry-primary"
           >
-            <option value="missions">Missions</option>
-            <option value="waypoints">Waypoints</option>
-            <option value="notes">Notes</option>
-          </select>
+            <Plus className="h-3 w-3" /> Add Pane
+          </button>
         </div>
-        {(splitMode === 'horizontal' || splitMode === 'vertical' || splitMode === 'triple') && (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">{splitMode === 'triple' ? 'CENTER:' : 'RIGHT:'}</span>
-            <select
-              value={splitMode === 'triple' ? centerPanel : rightPanel}
-              onChange={(e) => splitMode === 'triple' ? setCenterPanel(e.target.value as any) : setRightPanel(e.target.value as any)}
-              className="text-xs bg-background border border-border/50 rounded px-2 py-1 text-sentry-text"
-            >
-              <option value="missions">Missions</option>
-              <option value="waypoints">Waypoints</option>
-              <option value="notes">Notes</option>
-            </select>
-          </div>
-        )}
-        {splitMode === 'triple' && (
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">RIGHT:</span>
-            <select
-              value={rightPanel}
-              onChange={(e) => setRightPanel(e.target.value as any)}
-              className="text-xs bg-background border border-border/50 rounded px-2 py-1 text-sentry-text"
-            >
-              <option value="missions">Missions</option>
-              <option value="waypoints">Waypoints</option>
-              <option value="notes">Notes</option>
-            </select>
+
+        {/* Minimized pane chips */}
+        {minimizedPanes.length > 0 && (
+          <div className="flex items-center gap-1 flex-wrap">
+            <span className="text-[10px] text-muted-foreground font-mono">RESTORE:</span>
+            {minimizedPanes.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => toggleMinimize(p.id)}
+                className="flex items-center gap-1 px-2 py-0.5 text-[10px] rounded bg-muted/30 border border-border/40 text-muted-foreground hover:bg-sentry-primary/20 hover:text-sentry-primary font-mono"
+              >
+                <Maximize2 className="h-2.5 w-2.5" />
+                {PANE_LABELS[p.type]}
+              </button>
+            ))}
           </div>
         )}
       </div>
 
-      {/* Main Workspace Area - Split Screen */}
+      {/* Workspace area */}
       <div className="flex-1 overflow-hidden">
-        {splitMode === 'single' ? (
-          <div className="sentry-panel p-4 h-full rounded-lg">
-            {renderPanelContent(leftPanel)}
+        {maximizedPane ? (
+          <div className="sentry-panel h-full rounded-lg flex flex-col overflow-hidden">
+            <PaneHeader pane={maximizedPane} index={0} total={1} />
+            <div className="flex-1 p-3 overflow-hidden">
+              {renderPanelContent(maximizedPane.type)}
+            </div>
           </div>
-        ) : splitMode === 'triple' ? (
-          <ResizablePanelGroup direction="horizontal">
-            <ResizablePanel defaultSize={33} minSize={20}>
-              <div className="sentry-panel p-4 h-full rounded-lg mr-1">
-                {renderPanelContent(leftPanel)}
-              </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={34} minSize={20}>
-              <div className="sentry-panel p-4 h-full rounded-lg mx-1">
-                {renderPanelContent(centerPanel)}
-              </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={33} minSize={20}>
-              <div className="sentry-panel p-4 h-full rounded-lg ml-1">
-                {renderPanelContent(rightPanel)}
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+        ) : visiblePanes.length === 0 ? (
+          <div className="sentry-panel h-full rounded-lg flex items-center justify-center text-sm text-muted-foreground">
+            No active panes — click <span className="text-sentry-primary mx-1">Add Pane</span> or restore a minimized one.
+          </div>
         ) : (
-          <ResizablePanelGroup direction={splitMode === 'horizontal' ? 'horizontal' : 'vertical'}>
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <div className="sentry-panel p-4 h-full rounded-lg mr-1">
-                {renderPanelContent(leftPanel)}
-              </div>
-            </ResizablePanel>
-            <ResizableHandle withHandle />
-            <ResizablePanel defaultSize={50} minSize={30}>
-              <div className="sentry-panel p-4 h-full rounded-lg ml-1">
-                {renderPanelContent(rightPanel)}
-              </div>
-            </ResizablePanel>
-          </ResizablePanelGroup>
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={visiblePanes.map((p) => p.id)} strategy={horizontalListSortingStrategy}>
+              <ResizablePanelGroup direction="horizontal" className="gap-1">
+                {visiblePanes.map((pane, idx) => (
+                  <React.Fragment key={pane.id}>
+                    {idx > 0 && <ResizableHandle withHandle />}
+                    <ResizablePanel
+                      defaultSize={100 / visiblePanes.length}
+                      minSize={15}
+                    >
+                      <SortablePane pane={pane} index={idx} total={visiblePanes.length} />
+                    </ResizablePanel>
+                  </React.Fragment>
+                ))}
+              </ResizablePanelGroup>
+            </SortableContext>
+          </DndContext>
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="mt-4 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
+      <footer className="mt-3 text-center text-xs text-muted-foreground py-2 border-t border-border/40">
         B-THUNDER-01 WORKSPACE | YOD ALEF ENGINEERING COMPANY | All data saved locally for offline access
       </footer>
     </div>
