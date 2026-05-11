@@ -94,7 +94,7 @@ const haversineDistance = (lat1: number, lng1: number, lat2: number, lng2: numbe
 };
 
 // Realistic Earth with NASA textures
-const Earth = ({ userLocation }: { userLocation: { lat: number; lng: number } }) => {
+const Earth = ({ userLocation, heading, accuracy, hasFix }: { userLocation: { lat: number; lng: number }; heading: number; accuracy: number; hasFix: boolean }) => {
   const meshRef = useRef<THREE.Mesh>(null);
   const cloudsRef = useRef<THREE.Mesh>(null);
   const atmosphereRef = useRef<THREE.Mesh>(null);
