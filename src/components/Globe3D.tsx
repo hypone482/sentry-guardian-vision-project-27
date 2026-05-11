@@ -8,6 +8,7 @@ import earthNormal from '@/assets/earth-normal.jpg';
 import earthSpecular from '@/assets/earth-specular.jpg';
 import earthClouds from '@/assets/earth-clouds.png';
 import { useThreatStore } from '@/stores/threatStore';
+import { useGPSStore } from '@/stores/gpsStore';
 
 interface Attack {
   id: string;
