@@ -114,9 +114,6 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
         setLastFix(Date.now());
         onLocationUpdate?.(latitude, longitude);
       },
-        setLastFix(Date.now());
-        onLocationUpdate?.(latitude, longitude);
-      },
       (error) => {
         console.error('GPS Error:', error);
         setGpsError(error.message);
