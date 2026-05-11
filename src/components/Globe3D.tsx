@@ -909,7 +909,7 @@ const Globe3D: React.FC<Globe3DProps> = ({ active = true, userLocation, classNam
         />
 
         <React.Suspense fallback={<GlobeLoader />}>
-          <Earth userLocation={currentLocation} />
+          <Earth userLocation={currentLocation} heading={gpsHeading} accuracy={gpsAccuracy} hasFix={gpsHasFix} />
         </React.Suspense>
 
         {/* Impact zone at user location */}
