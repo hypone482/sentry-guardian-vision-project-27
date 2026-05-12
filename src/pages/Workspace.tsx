@@ -105,6 +105,20 @@ const Workspace: React.FC = () => {
     ]);
   };
 
+  const duplicatePane = (id: string) => {
+    if (panes.length >= 6) {
+      toast.warning('Pane limit reached', { description: 'Maximum of 6 panes' });
+      return;
+    }
+    const src = panes.find((p) => p.id === id);
+    if (!src) return;
+    const idx = panes.findIndex((p) => p.id === id);
+    const copy: Pane = { ...src, id: `p_${Date.now().toString(36)}`, minimized: false };
+    const next = [...panes];
+    next.splice(idx + 1, 0, copy);
+    setPanes(next);
+  };
+
   const removePane = (id: string) => {
     setPanes(panes.filter((p) => p.id !== id));
     if (maximizedId === id) setMaximizedId(null);
