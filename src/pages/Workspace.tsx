@@ -43,6 +43,7 @@ interface Waypoint {
 }
 
 type PaneType = 'missions' | 'waypoints' | 'notes';
+type SplitDir = 'horizontal' | 'vertical';
 
 interface Pane {
   id: string;
@@ -80,6 +81,11 @@ const Workspace: React.FC = () => {
     ],
   });
 
+  const [splitDir, setSplitDir] = useOfflineStorage<SplitDir>({
+    key: 'workspaceSplitDir',
+    defaultValue: 'horizontal',
+  });
+
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -97,6 +103,20 @@ const Workspace: React.FC = () => {
       ...panes,
       { id: `p_${Date.now().toString(36)}`, type, minimized: false },
     ]);
+  };
+
+  const duplicatePane = (id: string) => {
+    if (panes.length >= 6) {
+      toast.warning('Pane limit reached', { description: 'Maximum of 6 panes' });
+      return;
+    }
+    const src = panes.find((p) => p.id === id);
+    if (!src) return;
+    const idx = panes.findIndex((p) => p.id === id);
+    const copy: Pane = { ...src, id: `p_${Date.now().toString(36)}`, minimized: false };
+    const next = [...panes];
+    next.splice(idx + 1, 0, copy);
+    setPanes(next);
   };
 
   const removePane = (id: string) => {
@@ -406,38 +426,9 @@ const Workspace: React.FC = () => {
   };
 
   // ------------ pane wrapper (header + sortable) ------------
-  const SortablePane: React.FC<{ pane: Pane; index: number; total: number }> = ({
-    pane,
-    index,
-    total,
-  }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-      useSortable({ id: pane.id });
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className={cn(
-          'sentry-panel h-full rounded-lg flex flex-col overflow-hidden',
-          isDragging && 'opacity-60 ring-2 ring-sentry-primary/50',
-        )}
-      >
-        <PaneHeader pane={pane} index={index} total={total} dragHandleProps={{ ...attributes, ...listeners }} />
-        <div className="flex-1 p-3 overflow-hidden">{renderPanelContent(pane.type)}</div>
-      </div>
-    );
-  };
-
-  const PaneHeader: React.FC<{
-    pane: Pane;
-    index: number;
-    total: number;
-    dragHandleProps?: any;
-  }> = ({ pane, index, total, dragHandleProps }) => (
+  // Defined inside Workspace but memoized via render-stable closures so dnd-kit
+  // and react-resizable-panels keep their internal state across re-renders.
+  const renderPaneHeader = (pane: Pane, index: number, total: number, dragHandleProps?: any) => (
     <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-border/40 bg-card/40">
       <div className="flex items-center gap-1 min-w-0">
         <button
@@ -464,7 +455,7 @@ const Workspace: React.FC = () => {
           onClick={() => movePane(pane.id, -1)}
           disabled={index === 0}
           className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Move left"
+          title="Move"
         >
           <ChevronLeft className="h-3 w-3" />
         </button>
@@ -472,9 +463,16 @@ const Workspace: React.FC = () => {
           onClick={() => movePane(pane.id, 1)}
           disabled={index === total - 1}
           className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Move right"
+          title="Move"
         >
           <ChevronRight className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => duplicatePane(pane.id)}
+          className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary"
+          title="Duplicate / split"
+        >
+          <Plus className="h-3 w-3" />
         </button>
         <button
           onClick={() => toggleMinimize(pane.id)}
@@ -500,6 +498,32 @@ const Workspace: React.FC = () => {
       </div>
     </div>
   );
+
+  const SortablePane: React.FC<{ pane: Pane; index: number; total: number }> = ({
+    pane,
+    index,
+    total,
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+      useSortable({ id: pane.id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          'sentry-panel h-full rounded-lg flex flex-col overflow-hidden',
+          isDragging && 'opacity-60 ring-2 ring-sentry-primary/50',
+        )}
+      >
+        {renderPaneHeader(pane, index, total, { ...attributes, ...listeners })}
+        <div className="flex-1 p-3 overflow-hidden">{renderPanelContent(pane.type)}</div>
+      </div>
+    );
+  };
 
   // ------------ render ------------
   const visiblePanes = panes.filter((p) => !p.minimized);
@@ -571,6 +595,32 @@ const Workspace: React.FC = () => {
           >
             <Plus className="h-3 w-3" /> Add Pane
           </button>
+          <div className="flex items-center gap-0.5 ml-1 border border-border/40 rounded overflow-hidden">
+            <button
+              onClick={() => setSplitDir('horizontal')}
+              className={cn(
+                'px-2 py-1 text-[10px] font-mono transition-colors',
+                splitDir === 'horizontal'
+                  ? 'bg-sentry-primary/30 text-sentry-primary'
+                  : 'text-muted-foreground hover:bg-muted/30',
+              )}
+              title="Split horizontally (side by side)"
+            >
+              ⇋ H-SPLIT
+            </button>
+            <button
+              onClick={() => setSplitDir('vertical')}
+              className={cn(
+                'px-2 py-1 text-[10px] font-mono transition-colors',
+                splitDir === 'vertical'
+                  ? 'bg-sentry-primary/30 text-sentry-primary'
+                  : 'text-muted-foreground hover:bg-muted/30',
+              )}
+              title="Split vertically (stacked)"
+            >
+              ⇵ V-SPLIT
+            </button>
+          </div>
         </div>
 
         {/* Minimized pane chips */}
@@ -595,7 +645,7 @@ const Workspace: React.FC = () => {
       <div className="flex-1 overflow-hidden">
         {maximizedPane ? (
           <div className="sentry-panel h-full rounded-lg flex flex-col overflow-hidden">
-            <PaneHeader pane={maximizedPane} index={0} total={1} />
+            {renderPaneHeader(maximizedPane, 0, 1)}
             <div className="flex-1 p-3 overflow-hidden">
               {renderPanelContent(maximizedPane.type)}
             </div>
@@ -607,7 +657,13 @@ const Workspace: React.FC = () => {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={visiblePanes.map((p) => p.id)} strategy={horizontalListSortingStrategy}>
-              <ResizablePanelGroup direction="horizontal" className="gap-1">
+              {/* key tied to layout shape forces ResizablePanelGroup to remount cleanly
+                  when panes are added/removed/min/max — prevents stuck handles. */}
+              <ResizablePanelGroup
+                key={`${splitDir}-${visiblePanes.map((p) => p.id).join('|')}`}
+                direction={splitDir}
+                className="gap-1"
+              >
                 {visiblePanes.map((pane, idx) => (
                   <React.Fragment key={pane.id}>
                     {idx > 0 && <ResizableHandle withHandle />}

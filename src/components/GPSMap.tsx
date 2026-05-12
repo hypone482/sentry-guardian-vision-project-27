@@ -115,9 +115,16 @@ const GPSMap: React.FC<GPSMapProps> = ({ active = true, className, onLocationUpd
         onLocationUpdate?.(latitude, longitude);
       },
       (error) => {
-        console.error('GPS Error:', error);
-        setGpsError(error.message);
-        setGpsStatus('error');
+        const codeMap: Record<number, string> = {
+          1: 'Permission denied — enable location access for this site',
+          2: 'Position unavailable — no GPS signal',
+          3: 'Timeout — retrying…',
+        };
+        const msg = error?.message || codeMap[error?.code] || 'Unknown GPS error';
+        console.warn('[GPS]', error?.code, msg);
+        setGpsError(msg);
+        // keep listening on transient timeouts; only mark error on perm denial
+        setGpsStatus(error?.code === 1 ? 'error' : 'loading');
       },
       {
         enableHighAccuracy: true,
