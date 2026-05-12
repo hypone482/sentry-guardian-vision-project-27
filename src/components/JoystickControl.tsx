@@ -195,21 +195,23 @@ const JoystickControl: React.FC<JoystickControlProps> = ({
           <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] font-mono text-muted-foreground z-10">E</span>
 
           {/* 3D GLB joystick */}
-          {visible ? (
-            <Canvas camera={{ position: [0, 1.6, 2.6], fov: 40 }} gl={{ antialias: true, alpha: true }}>
-              <ambientLight intensity={0.6} />
-              <directionalLight position={[3, 4, 2]} intensity={1.1} />
-              <pointLight position={[-3, 2, -2]} intensity={0.4} color="#22c55e" />
-              <Suspense
-                fallback={
-                  <Html center>
-                    <span className="text-[9px] font-mono text-muted-foreground">LOADING MODEL…</span>
-                  </Html>
-                }
-              >
-                <JoystickModel tiltX={tiltX} tiltZ={tiltZ} sweep={sweep} />
-              </Suspense>
-            </Canvas>
+          {visible && !glbFailed ? (
+            <GLBErrorBoundary onError={() => setGlbFailed(true)}>
+              <Canvas camera={{ position: [0, 1.6, 2.6], fov: 40 }} gl={{ antialias: true, alpha: true }}>
+                <ambientLight intensity={0.6} />
+                <directionalLight position={[3, 4, 2]} intensity={1.1} />
+                <pointLight position={[-3, 2, -2]} intensity={0.4} color="#22c55e" />
+                <Suspense
+                  fallback={
+                    <Html center>
+                      <span className="text-[9px] font-mono text-muted-foreground">LOADING MODEL…</span>
+                    </Html>
+                  }
+                >
+                  <JoystickModel tiltX={tiltX} tiltZ={tiltZ} sweep={sweep} />
+                </Suspense>
+              </Canvas>
+            </GLBErrorBoundary>
           ) : (
             // 2D fallback knob
             <div
