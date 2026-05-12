@@ -1,8 +1,8 @@
-import React, { useState, useRef, useCallback, Suspense, useEffect } from 'react';
+import React, { useState, useRef, useCallback, Suspense, useEffect, Component, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Crosshair, RotateCcw, Gauge, Eye, EyeOff } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, Stage, Html } from '@react-three/drei';
+import { useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useJoystickStore } from '@/stores/joystickStore';
 
@@ -13,7 +13,14 @@ interface JoystickControlProps {
 }
 
 const GLB_URL = '/joystick.glb';
-useGLTF.preload(GLB_URL);
+
+// Error boundary so a failed GLB fetch never blanks the whole app
+class GLBErrorBoundary extends Component<{ children: ReactNode; onError: () => void }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch() { this.props.onError(); }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
 
 const JoystickModel: React.FC<{ tiltX: number; tiltZ: number; sweep: boolean }> = ({
   tiltX,
@@ -60,6 +67,7 @@ const JoystickControl: React.FC<JoystickControlProps> = ({
   const [calibrated, setCalibrated] = useState(true);
   const [sweep, setSweep] = useState(false);
   const [sensitivity, setSensitivity] = useState(1);
+  const [glbFailed, setGlbFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const visible = useJoystickStore((s) => s.visible);
@@ -187,21 +195,23 @@ const JoystickControl: React.FC<JoystickControlProps> = ({
           <span className="absolute right-1 top-1/2 -translate-y-1/2 text-[8px] font-mono text-muted-foreground z-10">E</span>
 
           {/* 3D GLB joystick */}
-          {visible ? (
-            <Canvas camera={{ position: [0, 1.6, 2.6], fov: 40 }} gl={{ antialias: true, alpha: true }}>
-              <ambientLight intensity={0.6} />
-              <directionalLight position={[3, 4, 2]} intensity={1.1} />
-              <pointLight position={[-3, 2, -2]} intensity={0.4} color="#22c55e" />
-              <Suspense
-                fallback={
-                  <Html center>
-                    <span className="text-[9px] font-mono text-muted-foreground">LOADING MODEL…</span>
-                  </Html>
-                }
-              >
-                <JoystickModel tiltX={tiltX} tiltZ={tiltZ} sweep={sweep} />
-              </Suspense>
-            </Canvas>
+          {visible && !glbFailed ? (
+            <GLBErrorBoundary onError={() => setGlbFailed(true)}>
+              <Canvas camera={{ position: [0, 1.6, 2.6], fov: 40 }} gl={{ antialias: true, alpha: true }}>
+                <ambientLight intensity={0.6} />
+                <directionalLight position={[3, 4, 2]} intensity={1.1} />
+                <pointLight position={[-3, 2, -2]} intensity={0.4} color="#22c55e" />
+                <Suspense
+                  fallback={
+                    <Html center>
+                      <span className="text-[9px] font-mono text-muted-foreground">LOADING MODEL…</span>
+                    </Html>
+                  }
+                >
+                  <JoystickModel tiltX={tiltX} tiltZ={tiltZ} sweep={sweep} />
+                </Suspense>
+              </Canvas>
+            </GLBErrorBoundary>
           ) : (
             // 2D fallback knob
             <div
