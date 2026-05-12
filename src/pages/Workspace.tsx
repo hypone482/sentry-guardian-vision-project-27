@@ -595,6 +595,32 @@ const Workspace: React.FC = () => {
           >
             <Plus className="h-3 w-3" /> Add Pane
           </button>
+          <div className="flex items-center gap-0.5 ml-1 border border-border/40 rounded overflow-hidden">
+            <button
+              onClick={() => setSplitDir('horizontal')}
+              className={cn(
+                'px-2 py-1 text-[10px] font-mono transition-colors',
+                splitDir === 'horizontal'
+                  ? 'bg-sentry-primary/30 text-sentry-primary'
+                  : 'text-muted-foreground hover:bg-muted/30',
+              )}
+              title="Split horizontally (side by side)"
+            >
+              ⇋ H-SPLIT
+            </button>
+            <button
+              onClick={() => setSplitDir('vertical')}
+              className={cn(
+                'px-2 py-1 text-[10px] font-mono transition-colors',
+                splitDir === 'vertical'
+                  ? 'bg-sentry-primary/30 text-sentry-primary'
+                  : 'text-muted-foreground hover:bg-muted/30',
+              )}
+              title="Split vertically (stacked)"
+            >
+              ⇵ V-SPLIT
+            </button>
+          </div>
         </div>
 
         {/* Minimized pane chips */}
@@ -619,7 +645,7 @@ const Workspace: React.FC = () => {
       <div className="flex-1 overflow-hidden">
         {maximizedPane ? (
           <div className="sentry-panel h-full rounded-lg flex flex-col overflow-hidden">
-            <PaneHeader pane={maximizedPane} index={0} total={1} />
+            {renderPaneHeader(maximizedPane, 0, 1)}
             <div className="flex-1 p-3 overflow-hidden">
               {renderPanelContent(maximizedPane.type)}
             </div>
@@ -631,7 +657,13 @@ const Workspace: React.FC = () => {
         ) : (
           <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
             <SortableContext items={visiblePanes.map((p) => p.id)} strategy={horizontalListSortingStrategy}>
-              <ResizablePanelGroup direction="horizontal" className="gap-1">
+              {/* key tied to layout shape forces ResizablePanelGroup to remount cleanly
+                  when panes are added/removed/min/max — prevents stuck handles. */}
+              <ResizablePanelGroup
+                key={`${splitDir}-${visiblePanes.map((p) => p.id).join('|')}`}
+                direction={splitDir}
+                className="gap-1"
+              >
                 {visiblePanes.map((pane, idx) => (
                   <React.Fragment key={pane.id}>
                     {idx > 0 && <ResizableHandle withHandle />}
