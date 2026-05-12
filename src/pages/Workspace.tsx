@@ -426,38 +426,9 @@ const Workspace: React.FC = () => {
   };
 
   // ------------ pane wrapper (header + sortable) ------------
-  const SortablePane: React.FC<{ pane: Pane; index: number; total: number }> = ({
-    pane,
-    index,
-    total,
-  }) => {
-    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-      useSortable({ id: pane.id });
-    const style = {
-      transform: CSS.Transform.toString(transform),
-      transition,
-    };
-    return (
-      <div
-        ref={setNodeRef}
-        style={style}
-        className={cn(
-          'sentry-panel h-full rounded-lg flex flex-col overflow-hidden',
-          isDragging && 'opacity-60 ring-2 ring-sentry-primary/50',
-        )}
-      >
-        <PaneHeader pane={pane} index={index} total={total} dragHandleProps={{ ...attributes, ...listeners }} />
-        <div className="flex-1 p-3 overflow-hidden">{renderPanelContent(pane.type)}</div>
-      </div>
-    );
-  };
-
-  const PaneHeader: React.FC<{
-    pane: Pane;
-    index: number;
-    total: number;
-    dragHandleProps?: any;
-  }> = ({ pane, index, total, dragHandleProps }) => (
+  // Defined inside Workspace but memoized via render-stable closures so dnd-kit
+  // and react-resizable-panels keep their internal state across re-renders.
+  const renderPaneHeader = (pane: Pane, index: number, total: number, dragHandleProps?: any) => (
     <div className="flex items-center justify-between gap-2 px-2 py-1 border-b border-border/40 bg-card/40">
       <div className="flex items-center gap-1 min-w-0">
         <button
@@ -484,7 +455,7 @@ const Workspace: React.FC = () => {
           onClick={() => movePane(pane.id, -1)}
           disabled={index === 0}
           className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Move left"
+          title="Move"
         >
           <ChevronLeft className="h-3 w-3" />
         </button>
@@ -492,9 +463,16 @@ const Workspace: React.FC = () => {
           onClick={() => movePane(pane.id, 1)}
           disabled={index === total - 1}
           className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary disabled:opacity-30 disabled:cursor-not-allowed"
-          title="Move right"
+          title="Move"
         >
           <ChevronRight className="h-3 w-3" />
+        </button>
+        <button
+          onClick={() => duplicatePane(pane.id)}
+          className="p-1 rounded hover:bg-sentry-primary/20 text-muted-foreground hover:text-sentry-primary"
+          title="Duplicate / split"
+        >
+          <Plus className="h-3 w-3" />
         </button>
         <button
           onClick={() => toggleMinimize(pane.id)}
@@ -520,6 +498,32 @@ const Workspace: React.FC = () => {
       </div>
     </div>
   );
+
+  const SortablePane: React.FC<{ pane: Pane; index: number; total: number }> = ({
+    pane,
+    index,
+    total,
+  }) => {
+    const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+      useSortable({ id: pane.id });
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+    };
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          'sentry-panel h-full rounded-lg flex flex-col overflow-hidden',
+          isDragging && 'opacity-60 ring-2 ring-sentry-primary/50',
+        )}
+      >
+        {renderPaneHeader(pane, index, total, { ...attributes, ...listeners })}
+        <div className="flex-1 p-3 overflow-hidden">{renderPanelContent(pane.type)}</div>
+      </div>
+    );
+  };
 
   // ------------ render ------------
   const visiblePanes = panes.filter((p) => !p.minimized);
