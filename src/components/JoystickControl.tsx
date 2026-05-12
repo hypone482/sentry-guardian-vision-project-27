@@ -1,8 +1,8 @@
-import React, { useState, useRef, useCallback, Suspense, useEffect } from 'react';
+import React, { useState, useRef, useCallback, Suspense, useEffect, Component, ReactNode } from 'react';
 import { cn } from '@/lib/utils';
 import { Crosshair, RotateCcw, Gauge, Eye, EyeOff } from 'lucide-react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { useGLTF, Stage, Html } from '@react-three/drei';
+import { useGLTF, Html } from '@react-three/drei';
 import * as THREE from 'three';
 import { useJoystickStore } from '@/stores/joystickStore';
 
@@ -13,7 +13,14 @@ interface JoystickControlProps {
 }
 
 const GLB_URL = '/joystick.glb';
-useGLTF.preload(GLB_URL);
+
+// Error boundary so a failed GLB fetch never blanks the whole app
+class GLBErrorBoundary extends Component<{ children: ReactNode; onError: () => void }, { hasError: boolean }> {
+  state = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch() { this.props.onError(); }
+  render() { return this.state.hasError ? null : this.props.children; }
+}
 
 const JoystickModel: React.FC<{ tiltX: number; tiltZ: number; sweep: boolean }> = ({
   tiltX,
