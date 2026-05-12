@@ -67,6 +67,7 @@ const JoystickControl: React.FC<JoystickControlProps> = ({
   const [calibrated, setCalibrated] = useState(true);
   const [sweep, setSweep] = useState(false);
   const [sensitivity, setSensitivity] = useState(1);
+  const [glbFailed, setGlbFailed] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
   const visible = useJoystickStore((s) => s.visible);
