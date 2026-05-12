@@ -43,6 +43,7 @@ interface Waypoint {
 }
 
 type PaneType = 'missions' | 'waypoints' | 'notes';
+type SplitDir = 'horizontal' | 'vertical';
 
 interface Pane {
   id: string;
@@ -78,6 +79,11 @@ const Workspace: React.FC = () => {
       { id: 'p1', type: 'missions', minimized: false },
       { id: 'p2', type: 'waypoints', minimized: false },
     ],
+  });
+
+  const [splitDir, setSplitDir] = useOfflineStorage<SplitDir>({
+    key: 'workspaceSplitDir',
+    defaultValue: 'horizontal',
   });
 
   const [maximizedId, setMaximizedId] = useState<string | null>(null);
