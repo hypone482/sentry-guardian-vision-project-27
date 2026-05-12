@@ -1,1 +1,3 @@
 project_id = "hqmqcsycokcnotfhsevq"
+[functions.joystick-assist]
+verify_jwt = false
